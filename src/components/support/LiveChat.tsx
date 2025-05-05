@@ -32,7 +32,7 @@ export function LiveChat({ open, onOpenChange }: LiveChatProps) {
     {
       id: 1,
       sender: 'ai',
-      text: 'Hello! I'm your AI support assistant. How can I help you today?',
+      text: "Hello! I'm your AI support assistant. How can I help you today?",
       timestamp: new Date()
     }
   ]);
