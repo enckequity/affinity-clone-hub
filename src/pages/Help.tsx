@@ -50,7 +50,6 @@ export default function Help() {
       <Tabs defaultValue="faqs" className="space-y-4">
         <TabsList>
           <TabsTrigger value="faqs">FAQs</TabsTrigger>
-          <TabsTrigger value="documentation">Documentation</TabsTrigger>
           <TabsTrigger value="contact">Contact Support</TabsTrigger>
         </TabsList>
         
@@ -97,74 +96,6 @@ export default function Help() {
               <div className="space-y-1">
                 <h3 className="font-medium">How do billing and subscriptions work?</h3>
                 <p className="text-sm text-muted-foreground">You can manage your subscription in Settings {'->'} Billing. We offer monthly and annual plans with per-user pricing.</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="documentation" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Documentation</CardTitle>
-              <CardDescription>Comprehensive guides for using all features of the CRM</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">Getting Started</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-1 text-sm">
-                      <li className="text-primary hover:underline cursor-pointer">System Overview</li>
-                      <li className="text-primary hover:underline cursor-pointer">Setting up your Account</li>
-                      <li className="text-primary hover:underline cursor-pointer">Customizing your Workspace</li>
-                      <li className="text-primary hover:underline cursor-pointer">User Roles and Permissions</li>
-                    </ul>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">Contacts & Companies</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-1 text-sm">
-                      <li className="text-primary hover:underline cursor-pointer">Managing Contacts</li>
-                      <li className="text-primary hover:underline cursor-pointer">Company Profiles</li>
-                      <li className="text-primary hover:underline cursor-pointer">Importing & Exporting Data</li>
-                      <li className="text-primary hover:underline cursor-pointer">Contact Segmentation</li>
-                    </ul>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">Deals & Pipeline</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-1 text-sm">
-                      <li className="text-primary hover:underline cursor-pointer">Creating Deals</li>
-                      <li className="text-primary hover:underline cursor-pointer">Pipeline Management</li>
-                      <li className="text-primary hover:underline cursor-pointer">Deal Analytics</li>
-                      <li className="text-primary hover:underline cursor-pointer">Forecasting</li>
-                    </ul>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">Integrations</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-1 text-sm">
-                      <li className="text-primary hover:underline cursor-pointer">Email Integration</li>
-                      <li className="text-primary hover:underline cursor-pointer">Calendar Sync</li>
-                      <li className="text-primary hover:underline cursor-pointer">Document Storage</li>
-                      <li className="text-primary hover:underline cursor-pointer">API Documentation</li>
-                    </ul>
-                  </CardContent>
-                </Card>
               </div>
             </CardContent>
           </Card>

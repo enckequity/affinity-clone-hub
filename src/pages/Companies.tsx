@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Table, 
@@ -15,15 +14,16 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { 
-  Plus, 
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { 
   Search, 
   Filter,
   MoreHorizontal,
-  Mail,
-  Phone,
   Users,
   Globe,
   Building2
@@ -38,8 +38,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { CompanyForm } from '@/components/companies/CompanyForm';
 import { CompanyDetails } from '@/components/companies/CompanyDetails';
+import { CompanyFilters } from '@/components/companies/CompanyFilters';
+import { CompanyActions } from '@/components/companies/CompanyActions';
+import { useToast } from "@/hooks/use-toast";
 
 // Sample data for the companies list
 const companiesData = [
@@ -116,8 +118,65 @@ const companiesData = [
 ];
 
 export default function Companies() {
-  const [isAddingCompany, setIsAddingCompany] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<number | null>(null);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilters, setActiveFilters] = useState<{
+    industry: string[];
+    size: string[];
+    tag: string[];
+  }>({
+    industry: [],
+    size: [],
+    tag: []
+  });
+  const { toast } = useToast();
+  
+  const handleFiltersChanged = (filters: typeof activeFilters) => {
+    setActiveFilters(filters);
+    
+    if (Object.values(filters).some(arr => arr.length > 0)) {
+      toast({
+        title: "Filters applied",
+        description: "The companies list has been filtered according to your criteria."
+      });
+    }
+  };
+  
+  const handleCompanyAdded = () => {
+    // In a real app, this would refresh the companies list
+    toast({
+      title: "Companies updated",
+      description: "The companies list has been updated."
+    });
+  };
+  
+  // Filter the companies based on search query and filters
+  const filteredCompanies = companiesData.filter(company => {
+    // Search filter
+    const matchesSearch = searchQuery === '' || 
+      company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      company.industry.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      company.location.toLowerCase().includes(searchQuery.toLowerCase());
+      
+    // Industry filter
+    const matchesIndustry = activeFilters.industry.length === 0 || 
+      activeFilters.industry.some(i => 
+        company.industry.toLowerCase() === i.toLowerCase()
+      );
+      
+    // Size filter
+    const matchesSize = activeFilters.size.length === 0 || 
+      activeFilters.size.includes(company.size);
+      
+    // Tags filter
+    const matchesTags = activeFilters.tag.length === 0 || 
+      activeFilters.tag.some(t => 
+        company.tags.some(tag => tag.toLowerCase() === t.toLowerCase())
+      );
+      
+    return matchesSearch && matchesIndustry && matchesSize && matchesTags;
+  });
 
   return (
     <div className="space-y-6">
@@ -127,20 +186,7 @@ export default function Companies() {
           <p className="text-muted-foreground">Manage your organizations and accounts.</p>
         </div>
         
-        <Dialog open={isAddingCompany} onOpenChange={setIsAddingCompany}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Company
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Add New Company</DialogTitle>
-            </DialogHeader>
-            <CompanyForm onComplete={() => setIsAddingCompany(false)} />
-          </DialogContent>
-        </Dialog>
+        <CompanyActions onCompanyAdded={handleCompanyAdded} />
       </div>
       
       <div className="flex flex-col md:flex-row gap-4 items-start">
@@ -149,13 +195,34 @@ export default function Companies() {
           <Input 
             type="search" 
             placeholder="Search companies..." 
-            className="pl-9 w-full" 
+            className="pl-9 w-full"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         
-        <Button variant="outline" size="icon">
-          <Filter className="h-4 w-4" />
-        </Button>
+        <Sheet open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+          <SheetTrigger asChild>
+            <Button 
+              variant="outline" 
+              size="icon"
+              className={activeFilters.industry.length > 0 || 
+                activeFilters.size.length > 0 || 
+                activeFilters.tag.length > 0 ? "bg-primary text-primary-foreground" : ""}
+            >
+              <Filter className="h-4 w-4" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right" className="w-[300px] sm:w-[400px] p-0 overflow-y-auto">
+            <div className="p-6 space-y-3">
+              <h3 className="text-lg font-medium">Filter Companies</h3>
+              <p className="text-sm text-muted-foreground">
+                Narrow down your companies list by applying filters.
+              </p>
+            </div>
+            <CompanyFilters onFiltersChanged={handleFiltersChanged} />
+          </SheetContent>
+        </Sheet>
       </div>
       
       <div className="bg-white rounded-md border">
@@ -171,71 +238,119 @@ export default function Companies() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {companiesData.map((company) => (
-              <TableRow key={company.id}>
-                <TableCell>
-                  <div className="flex items-center gap-3" onClick={() => setSelectedCompany(company.id)}>
-                    <Avatar className="h-8 w-8 bg-muted">
-                      <AvatarFallback>{company.avatarInitials}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{company.name}</p>
-                      <div className="flex items-center text-xs text-muted-foreground md:hidden">
-                        <Globe className="mr-1 h-3 w-3" />
-                        {company.website}
-                      </div>
-                    </div>
+            {filteredCompanies.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="h-24 text-center">
+                  <div className="flex flex-col items-center justify-center text-muted-foreground">
+                    <Building2 className="h-8 w-8 mb-2" />
+                    <p className="font-medium">No companies found</p>
+                    <p className="text-sm">
+                      {searchQuery || Object.values(activeFilters).some(arr => arr.length > 0) 
+                        ? "Try changing your search or filters"
+                        : "Add your first company to get started"}
+                    </p>
                   </div>
-                </TableCell>
-                <TableCell className="hidden md:table-cell">
-                  <div className="flex items-center gap-1">
-                    <Badge variant="outline" className="text-xs">
-                      {company.industry}
-                    </Badge>
-                    <Badge variant="outline" className="text-xs">
-                      {company.size}
-                    </Badge>
-                  </div>
-                </TableCell>
-                <TableCell className="hidden md:table-cell">
-                  <div className="flex items-center gap-1">
-                    <Users className="h-3 w-3 text-muted-foreground" />
-                    <span>{company.contacts}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="hidden lg:table-cell">
-                  <Badge variant={company.deals > 0 ? "default" : "outline"} className="text-xs">
-                    {company.deals} active
-                  </Badge>
-                </TableCell>
-                <TableCell className="hidden lg:table-cell text-sm">
-                  {company.location}
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setSelectedCompany(company.id)}>
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>Edit</DropdownMenuItem>
-                      <DropdownMenuItem>Add Contact</DropdownMenuItem>
-                      <DropdownMenuItem>Create Deal</DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-destructive">
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              filteredCompanies.map((company) => (
+                <TableRow key={company.id}>
+                  <TableCell>
+                    <div 
+                      className="flex items-center gap-3 cursor-pointer" 
+                      onClick={() => setSelectedCompany(company.id)}
+                    >
+                      <Avatar className="h-8 w-8 bg-muted">
+                        <AvatarFallback>{company.avatarInitials}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">{company.name}</p>
+                        <div className="flex items-center text-xs text-muted-foreground md:hidden">
+                          <Globe className="mr-1 h-3 w-3" />
+                          {company.website}
+                        </div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    <div className="flex items-center gap-1">
+                      <Badge variant="outline" className="text-xs">
+                        {company.industry}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {company.size}
+                      </Badge>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    <div className="flex items-center gap-1">
+                      <Users className="h-3 w-3 text-muted-foreground" />
+                      <span>{company.contacts}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    <Badge variant={company.deals > 0 ? "default" : "outline"} className="text-xs">
+                      {company.deals} active
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell text-sm">
+                    {company.location}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setSelectedCompany(company.id)}>
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          toast({
+                            title: "Edit company",
+                            description: "The company edit form would open here."
+                          });
+                        }}>
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          toast({
+                            title: "Add contact",
+                            description: "The add contact form would open here."
+                          });
+                        }}>
+                          Add Contact
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          toast({
+                            title: "Create deal",
+                            description: "The create deal form would open here."
+                          });
+                        }}>
+                          Create Deal
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          className="text-destructive"
+                          onClick={() => {
+                            toast({
+                              title: "Delete company",
+                              description: "The company would be deleted here."
+                            });
+                          }}
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
