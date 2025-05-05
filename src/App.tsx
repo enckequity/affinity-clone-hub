@@ -10,6 +10,8 @@ import Companies from "./pages/Companies";
 import Deals from "./pages/Deals";
 import Activities from "./pages/Activities";
 import Workflows from "./pages/Workflows";
+import Settings from "./pages/Settings";
+import Help from "./pages/Help";
 import NotFound from "./pages/NotFound";
 import { AppLayout } from "./components/layout/AppLayout";
 import { AuthLayout } from "./components/auth/AuthLayout";
@@ -50,6 +52,8 @@ const App = () => (
               <Route path="/deals" element={<Deals />} />
               <Route path="/activities" element={<Activities />} />
               <Route path="/workflows" element={<Workflows />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/help" element={<Help />} />
             </Route>
             
             {/* Redirect to dashboard for the index page */}
