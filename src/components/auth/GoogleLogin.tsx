@@ -9,10 +9,22 @@ export function GoogleLogin({ className }: { className?: string }) {
 
   const handleLogin = async () => {
     try {
+      // Get the current origin to ensure we're using the correct URL
+      const origin = window.location.origin;
+      
+      // Log for debugging
+      console.log("Starting Google login with redirect URL:", `${origin}/auth/callback`);
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${origin}/auth/callback`,
+          queryParams: {
+            // Optional: Add access_type parameter for offline access if needed
+            access_type: 'online',
+            // Force re-consent to ensure fresh tokens
+            prompt: 'select_account',
+          },
         },
       });
 
