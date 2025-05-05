@@ -14,13 +14,28 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { DealPipeline } from '@/components/dashboard/DealPipeline';
 import { RecentActivities } from '@/components/dashboard/RecentActivities';
+import { AIInsights } from '@/components/dashboard/AIInsights';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Dashboard() {
+  const { profile } = useAuth();
+  
+  const greeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+  
+  const displayName = profile?.first_name 
+    ? `${profile.first_name}` 
+    : 'there';
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Overview of your CRM activity and performance.</p>
+        <h1 className="text-3xl font-bold tracking-tight">{greeting()}, {displayName}</h1>
+        <p className="text-muted-foreground">Here's an overview of your CRM activity and performance.</p>
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -75,6 +90,11 @@ export default function Dashboard() {
             </p>
           </CardContent>
         </Card>
+      </div>
+      
+      {/* AI Insights Component */}
+      <div className="grid gap-4 grid-cols-1">
+        <AIInsights />
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">

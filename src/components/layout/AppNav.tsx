@@ -1,96 +1,86 @@
 
 import React from 'react';
-import { NavLink } from 'react-router-dom';
-import { 
-  Sidebar, 
-  SidebarContent, 
-  SidebarFooter, 
-  SidebarHeader,
-  SidebarTrigger
-} from "@/components/ui/sidebar";
+import { Link, useLocation } from 'react-router-dom';
+import { cn } from "@/lib/utils";
 import { 
   LayoutDashboard, 
   Users, 
   Building2, 
-  Briefcase,
-  MessageSquare,
+  TrendingUp, 
+  CalendarClock,
+  Workflow,
   Settings,
-  LogOut
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+  HelpCircle
+} from 'lucide-react';
 
-export function AppNav() {
+const navItems = [
+  {
+    title: 'Dashboard',
+    href: '/',
+    icon: LayoutDashboard,
+  },
+  {
+    title: 'Contacts',
+    href: '/contacts',
+    icon: Users,
+  },
+  {
+    title: 'Companies',
+    href: '/companies',
+    icon: Building2,
+  },
+  {
+    title: 'Deals',
+    href: '/deals',
+    icon: TrendingUp,
+  },
+  {
+    title: 'Activities',
+    href: '/activities',
+    icon: CalendarClock,
+  },
+  {
+    title: 'Workflows',
+    href: '/workflows',
+    icon: Workflow,
+  },
+  {
+    title: 'Settings',
+    href: '/settings',
+    icon: Settings,
+  },
+  {
+    title: 'Help',
+    href: '/help',
+    icon: HelpCircle,
+  }
+];
+
+interface AppNavProps {
+  isCollapsed: boolean;
+}
+
+export function AppNav({ isCollapsed }: AppNavProps) {
+  const location = useLocation();
+  const currentPath = location.pathname;
+  
   return (
-    <Sidebar className="border-r">
-      <SidebarHeader className="py-5 px-3">
-        <div className="flex justify-between items-center">
-          <h1 className="text-lg font-bold text-sidebar-foreground">
-            Affinity CRM
-          </h1>
-          <SidebarTrigger />
-        </div>
-      </SidebarHeader>
-      
-      <SidebarContent className="p-3">
-        <div className="space-y-1">
-          <NavLink to="/" className={({isActive}) => 
-            `crm-sidebar-link ${isActive ? 'active' : ''}`
-          }>
-            <LayoutDashboard className="w-5 h-5" />
-            <span>Dashboard</span>
-          </NavLink>
-          
-          <NavLink to="/contacts" className={({isActive}) => 
-            `crm-sidebar-link ${isActive ? 'active' : ''}`
-          }>
-            <Users className="w-5 h-5" />
-            <span>Contacts</span>
-          </NavLink>
-          
-          <NavLink to="/companies" className={({isActive}) => 
-            `crm-sidebar-link ${isActive ? 'active' : ''}`
-          }>
-            <Building2 className="w-5 h-5" />
-            <span>Companies</span>
-          </NavLink>
-          
-          <NavLink to="/deals" className={({isActive}) => 
-            `crm-sidebar-link ${isActive ? 'active' : ''}`
-          }>
-            <Briefcase className="w-5 h-5" />
-            <span>Deals</span>
-          </NavLink>
-          
-          <NavLink to="/activities" className={({isActive}) => 
-            `crm-sidebar-link ${isActive ? 'active' : ''}`
-          }>
-            <MessageSquare className="w-5 h-5" />
-            <span>Activities</span>
-          </NavLink>
-        </div>
-        
-        <Separator className="my-4 bg-sidebar-border" />
-        
-        <div className="space-y-1">
-          <NavLink to="/settings" className={({isActive}) => 
-            `crm-sidebar-link ${isActive ? 'active' : ''}`
-          }>
-            <Settings className="w-5 h-5" />
-            <span>Settings</span>
-          </NavLink>
-        </div>
-      </SidebarContent>
-      
-      <SidebarFooter className="p-3 mt-auto">
-        <Button 
-          variant="ghost" 
-          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent/50"
+    <nav className="grid gap-1 px-2">
+      {navItems.map((item, index) => (
+        <Link
+          key={index}
+          to={item.href}
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+            currentPath === item.href ? 
+              "bg-muted font-medium text-primary" : 
+              "hover:bg-muted hover:text-primary"
+          )}
         >
-          <LogOut className="w-5 h-5 mr-2" />
-          <span>Log out</span>
-        </Button>
-      </SidebarFooter>
-    </Sidebar>
+          <item.icon className="h-4 w-4" />
+          {!isCollapsed && <span>{item.title}</span>}
+        </Link>
+      ))}
+    </nav>
   );
 }

@@ -9,6 +9,7 @@ import Contacts from "./pages/Contacts";
 import Companies from "./pages/Companies";
 import Deals from "./pages/Deals";
 import Activities from "./pages/Activities";
+import Workflows from "./pages/Workflows";
 import NotFound from "./pages/NotFound";
 import { AppLayout } from "./components/layout/AppLayout";
 import { AuthLayout } from "./components/auth/AuthLayout";
@@ -16,6 +17,7 @@ import { LoginForm } from "./components/auth/LoginForm";
 import { RegisterForm } from "./components/auth/RegisterForm";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import AuthCallback from "./pages/AuthCallback";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +35,9 @@ const App = () => (
               <Route path="/register" element={<RegisterForm />} />
             </Route>
             
+            {/* Auth Callback Route */}
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            
             {/* App Routes - Protected */}
             <Route element={
               <ProtectedRoute>
@@ -44,6 +49,7 @@ const App = () => (
               <Route path="/companies" element={<Companies />} />
               <Route path="/deals" element={<Deals />} />
               <Route path="/activities" element={<Activities />} />
+              <Route path="/workflows" element={<Workflows />} />
             </Route>
             
             {/* Redirect to dashboard for the index page */}
