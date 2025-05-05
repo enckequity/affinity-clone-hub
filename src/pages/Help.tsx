@@ -78,25 +78,25 @@ export default function Help() {
               
               <div className="space-y-1">
                 <h3 className="font-medium">How do I set up email integration?</h3>
-                <p className="text-sm text-muted-foreground">Go to Settings > Integrations and connect your Microsoft or Google account to enable email integration.</p>
+                <p className="text-sm text-muted-foreground">Go to Settings {'->'} Integrations and connect your Microsoft or Google account to enable email integration.</p>
               </div>
               <Separator />
               
               <div className="space-y-1">
                 <h3 className="font-medium">Can I customize the deal stages?</h3>
-                <p className="text-sm text-muted-foreground">Yes, you can customize deal stages by going to Settings > Deals and clicking "Customize Stages".</p>
+                <p className="text-sm text-muted-foreground">Yes, you can customize deal stages by going to Settings {'->'} Deals and clicking "Customize Stages".</p>
               </div>
               <Separator />
               
               <div className="space-y-1">
                 <h3 className="font-medium">How do I invite team members?</h3>
-                <p className="text-sm text-muted-foreground">Go to Settings > Team and click "Invite Team Member" to send an invitation via email.</p>
+                <p className="text-sm text-muted-foreground">Go to Settings {'->'} Team and click "Invite Team Member" to send an invitation via email.</p>
               </div>
               <Separator />
               
               <div className="space-y-1">
                 <h3 className="font-medium">How do billing and subscriptions work?</h3>
-                <p className="text-sm text-muted-foreground">You can manage your subscription in Settings > Billing. We offer monthly and annual plans with per-user pricing.</p>
+                <p className="text-sm text-muted-foreground">You can manage your subscription in Settings {'->'} Billing. We offer monthly and annual plans with per-user pricing.</p>
               </div>
             </CardContent>
           </Card>
