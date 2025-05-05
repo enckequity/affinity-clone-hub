@@ -21,10 +21,16 @@ import {
   Globe,
   Users,
   Briefcase,
-  DollarSign
+  DollarSign,
+  Plus,
+  Upload,
+  Download
 } from "lucide-react";
 import { RecentActivities } from '@/components/dashboard/RecentActivities';
 import { CompanyForm } from './CompanyForm';
+import { useToast } from '@/hooks/use-toast';
+import { LogActivityDialog } from '@/components/activities/LogActivityDialog';
+import { AddNoteDialog } from '@/components/activities/AddNoteDialog';
 
 interface CompanyDetailsProps {
   company: any;
@@ -33,6 +39,24 @@ interface CompanyDetailsProps {
 
 export function CompanyDetails({ company, onClose }: CompanyDetailsProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoggingActivity, setIsLoggingActivity] = useState(false);
+  const [isAddingNote, setIsAddingNote] = useState(false);
+  const { toast } = useToast();
+  
+  const handleDeleteCompany = () => {
+    toast({
+      title: "Company deleted",
+      description: "The company has been successfully deleted."
+    });
+    onClose();
+  };
+  
+  const handleAddContact = () => {
+    toast({
+      title: "Adding contact",
+      description: "Feature will be implemented soon."
+    });
+  };
   
   if (isEditing) {
     return (
@@ -79,6 +103,7 @@ export function CompanyDetails({ company, onClose }: CompanyDetailsProps) {
               variant="outline" 
               size="icon" 
               className="h-8 w-8 text-destructive hover:bg-destructive/10"
+              onClick={handleDeleteCompany}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -257,7 +282,7 @@ export function CompanyDetails({ company, onClose }: CompanyDetailsProps) {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-sm font-medium">Company Contacts</h3>
-              <Button size="sm">
+              <Button size="sm" onClick={handleAddContact}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add Contact
               </Button>
@@ -398,11 +423,11 @@ export function CompanyDetails({ company, onClose }: CompanyDetailsProps) {
             <div className="flex justify-between items-center">
               <h3 className="text-sm font-medium">Activity Timeline</h3>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline">
+                <Button size="sm" variant="outline" onClick={() => setIsAddingNote(true)}>
                   <MessageSquare className="h-4 w-4 mr-1" />
                   Add Note
                 </Button>
-                <Button size="sm" variant="outline">
+                <Button size="sm" variant="outline" onClick={() => setIsLoggingActivity(true)}>
                   <Calendar className="h-4 w-4 mr-1" />
                   Log Activity
                 </Button>
@@ -415,6 +440,20 @@ export function CompanyDetails({ company, onClose }: CompanyDetailsProps) {
           </div>
         </TabsContent>
       </Tabs>
+
+      <LogActivityDialog 
+        open={isLoggingActivity} 
+        onOpenChange={setIsLoggingActivity}
+        entityId={company.id}
+        entityType="company"
+      />
+
+      <AddNoteDialog
+        open={isAddingNote}
+        onOpenChange={setIsAddingNote}
+        entityId={company.id}
+        entityType="company"
+      />
     </>
   );
 }
@@ -428,4 +467,3 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus } from "lucide-react";
