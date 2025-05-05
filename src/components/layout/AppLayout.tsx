@@ -19,7 +19,7 @@ export function AppLayout() {
   return (
     <SidebarProvider defaultOpen={!isMobile}>
       <div className="min-h-screen flex w-full">
-        <AppNav />
+        <AppNav isCollapsed={!sidebarOpen} />
         
         <div className="flex-1 flex flex-col">
           <header className="bg-white border-b border-border h-16 flex items-center px-4 justify-between">
