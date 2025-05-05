@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Json } from '@/integrations/supabase/types';
 
 export type Workflow = {
   id: string;
@@ -35,6 +36,23 @@ export type WorkflowFormData = {
   }>;
 };
 
+// Helper function to safely parse JSON or return a default value
+const safeJsonParse = <T>(jsonValue: Json, defaultValue: T): T => {
+  if (typeof jsonValue === 'string') {
+    try {
+      return JSON.parse(jsonValue) as T;
+    } catch (e) {
+      return defaultValue;
+    }
+  }
+  
+  if (jsonValue === null || jsonValue === undefined) {
+    return defaultValue;
+  }
+  
+  return jsonValue as unknown as T;
+};
+
 export const useWorkflows = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -50,16 +68,14 @@ export const useWorkflows = () => {
 
       if (error) throw error;
       
-      // Ensure we convert JSON data to the correct format for Workflow type
-      const formattedData = data.map(workflow => ({
-        ...workflow,
-        trigger_config: typeof workflow.trigger_config === 'string' 
-          ? JSON.parse(workflow.trigger_config) 
-          : workflow.trigger_config,
-        actions: typeof workflow.actions === 'string' 
-          ? JSON.parse(workflow.actions) 
-          : workflow.actions
-      })) as Workflow[];
+      // Convert JSON data to the correct type format for Workflow type
+      const formattedData = data.map(workflow => {
+        return {
+          ...workflow,
+          trigger_config: safeJsonParse<Record<string, any>>(workflow.trigger_config, {}),
+          actions: safeJsonParse<Array<{id: string; type: string; config: Record<string, any>}>>(workflow.actions, [])
+        } as Workflow;
+      });
       
       setWorkflows(formattedData);
     } catch (error: any) {
@@ -105,7 +121,12 @@ export const useWorkflows = () => {
         description: 'Your workflow has been created successfully.',
       });
       
-      return data as Workflow;
+      // Cast data to Workflow type with proper parsing
+      return {
+        ...data,
+        trigger_config: safeJsonParse<Record<string, any>>(data.trigger_config, {}),
+        actions: safeJsonParse<Array<{id: string; type: string; config: Record<string, any>}>>(data.actions, [])
+      } as Workflow;
     } catch (error: any) {
       console.error('Error creating workflow:', error);
       toast({
@@ -142,7 +163,12 @@ export const useWorkflows = () => {
         description: 'Your workflow has been updated successfully.',
       });
       
-      return data as Workflow;
+      // Cast data to Workflow type with proper parsing
+      return {
+        ...data,
+        trigger_config: safeJsonParse<Record<string, any>>(data.trigger_config, {}),
+        actions: safeJsonParse<Array<{id: string; type: string; config: Record<string, any>}>>(data.actions, [])
+      } as Workflow;
     } catch (error: any) {
       console.error('Error updating workflow:', error);
       toast({
@@ -212,7 +238,12 @@ export const useWorkflows = () => {
         description: 'The workflow has been duplicated successfully.',
       });
       
-      return data as Workflow;
+      // Cast data to Workflow type with proper parsing
+      return {
+        ...data,
+        trigger_config: safeJsonParse<Record<string, any>>(data.trigger_config, {}),
+        actions: safeJsonParse<Array<{id: string; type: string; config: Record<string, any>}>>(data.actions, [])
+      } as Workflow;
     } catch (error: any) {
       console.error('Error duplicating workflow:', error);
       toast({
@@ -244,7 +275,12 @@ export const useWorkflows = () => {
         description: `The workflow has been ${newStatus === 'active' ? 'activated' : 'paused'} successfully.`,
       });
       
-      return data as Workflow;
+      // Cast data to Workflow type with proper parsing
+      return {
+        ...data,
+        trigger_config: safeJsonParse<Record<string, any>>(data.trigger_config, {}),
+        actions: safeJsonParse<Array<{id: string; type: string; config: Record<string, any>}>>(data.actions, [])
+      } as Workflow;
     } catch (error: any) {
       console.error('Error toggling workflow status:', error);
       toast({
@@ -270,23 +306,29 @@ export const useWorkflows = () => {
         
       if (runError) throw runError;
       
-      // 2. Update the workflow's last_run and total_runs
+      // 2. Update the workflow's last_run
       const { data: workflowData, error: workflowError } = await supabase
         .from('workflows')
         .update({
           last_run: new Date().toISOString(),
-          total_runs: await supabase.rpc('increment_total_runs', { row_id: id })
         })
         .eq('id', id)
         .select('*')
         .single();
       
       if (workflowError) throw workflowError;
+
+      // 3. Update total_runs using a separate query since rpc is not working properly
+      const { error: updateError } = await supabase
+        .from('workflows')
+        .update({
+          total_runs: workflowData.total_runs + 1
+        })
+        .eq('id', id);
+        
+      if (updateError) throw updateError;
       
-      // In a real application, you would trigger an edge function or background process here
-      // For now, we'll simulate a successful run
-      
-      // 3. Simulate workflow processing
+      // 4. Simulate workflow processing
       setTimeout(async () => {
         await supabase
           .from('workflow_runs')
@@ -303,7 +345,12 @@ export const useWorkflows = () => {
         description: 'The workflow has been triggered and is now running.',
       });
       
-      return workflowData as Workflow;
+      // Cast data to Workflow type with proper parsing
+      return {
+        ...workflowData,
+        trigger_config: safeJsonParse<Record<string, any>>(workflowData.trigger_config, {}),
+        actions: safeJsonParse<Array<{id: string; type: string; config: Record<string, any>}>>(workflowData.actions, [])
+      } as Workflow;
     } catch (error: any) {
       console.error('Error running workflow:', error);
       toast({
