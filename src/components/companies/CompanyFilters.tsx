@@ -130,7 +130,7 @@ export function CompanyFilters({ onFiltersChanged }: CompanyFiltersProps) {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-full p-0">
-              <Command>
+              <Command className="w-full">
                 <CommandInput placeholder="Search industry..." />
                 <CommandEmpty>No industry found.</CommandEmpty>
                 <CommandGroup>
@@ -194,7 +194,7 @@ export function CompanyFilters({ onFiltersChanged }: CompanyFiltersProps) {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-full p-0">
-              <Command>
+              <Command className="w-full">
                 <CommandGroup>
                   {sizes.map((size) => (
                     <CommandItem
@@ -256,7 +256,7 @@ export function CompanyFilters({ onFiltersChanged }: CompanyFiltersProps) {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-full p-0">
-              <Command>
+              <Command className="w-full">
                 <CommandInput placeholder="Search tags..." />
                 <CommandEmpty>No tag found.</CommandEmpty>
                 <CommandGroup>
@@ -303,3 +303,4 @@ export function CompanyFilters({ onFiltersChanged }: CompanyFiltersProps) {
     </div>
   );
 }
+
