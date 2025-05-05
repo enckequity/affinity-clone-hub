@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,27 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// CRM specific colors
+				crm: {
+					'blue': '#3b82f6',
+					'indigo': '#6366f1',
+					'purple': '#8b5cf6',
+					'pink': '#ec4899',
+					'red': '#ef4444',
+					'orange': '#f97316',
+					'yellow': '#eab308',
+					'green': '#22c55e',
+					'teal': '#14b8a6',
+					'cyan': '#06b6d4',
+				},
+				stage: {
+					'lead': '#f97316',
+					'qualified': '#eab308',
+					'proposal': '#3b82f6',
+					'negotiation': '#8b5cf6',
+					'closed-won': '#22c55e',
+					'closed-lost': '#ef4444',
 				}
 			},
 			borderRadius: {
@@ -84,11 +106,31 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'fade-in': {
+					from: {
+						opacity: '0'
+					},
+					to: {
+						opacity: '1'
+					}
+				},
+				'fade-up': {
+					from: {
+						opacity: '0',
+						transform: 'translateY(10px)'
+					},
+					to: {
+						opacity: '1',
+						transform: 'translateY(0)'
+					}
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'fade-in': 'fade-in 0.3s ease-out',
+				'fade-up': 'fade-up 0.3s ease-out'
 			}
 		}
 	},
