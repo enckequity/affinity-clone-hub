@@ -11,7 +11,7 @@ export function AuthLayout() {
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-8">
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-primary">Affinity CRM</h1>
+            <h1 className="text-3xl font-bold text-primary">CapitalMCRM</h1>
             <p className="text-muted-foreground text-sm mt-1">Intelligent relationship management</p>
           </div>
         </div>
