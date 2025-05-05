@@ -48,6 +48,8 @@ export function SearchInput() {
     { id: 'ai1', text: 'Show deals closing this month', type: 'ai' },
     { id: 'ai2', text: 'Find contacts I haven\'t reached out to in 30 days', type: 'ai' },
     { id: 'ai3', text: 'Summarize Acme Inc relationship', type: 'ai' },
+    { id: 'ai4', text: 'Draft follow-up email to Michael Brown', type: 'ai' },
+    { id: 'ai5', text: 'Analyze risk for Enterprise Solution deal', type: 'ai' },
   ];
 
   React.useEffect(() => {
@@ -75,8 +77,8 @@ export function SearchInput() {
       // In a real app, navigate to the deal or open deal dialog
       console.log('Navigate to deal:', item);
     } else if (item.type === 'ai') {
-      // In a real app, trigger AI assistant with this query
-      console.log('AI query:', item.text);
+      // Navigate to dashboard with AI query
+      navigate('/?aiQuery=' + encodeURIComponent(item.text));
     }
   };
 
@@ -91,7 +93,7 @@ export function SearchInput() {
       </button>
       
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="Search contacts, companies, deals..." />
+        <CommandInput placeholder="Search contacts, companies, deals or ask AI..." />
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
           

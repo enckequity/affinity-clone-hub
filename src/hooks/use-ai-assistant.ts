@@ -9,7 +9,10 @@ type AIAction =
   | 'score_deal' 
   | 'suggest_followup'
   | 'analyze_risk'
-  | 'natural_language_query';
+  | 'natural_language_query'
+  | 'analyze_contact_risk'
+  | 'detect_duplicates'
+  | 'enrich_data';
 
 interface UseAIAssistantOptions {
   onSuccess?: (result: string) => void;
@@ -72,6 +75,9 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
     scoreDeal: (content: string) => executeAIAction('score_deal', content),
     suggestFollowup: (content: string) => executeAIAction('suggest_followup', content),
     analyzeRisk: (content: string, entityData = null) => executeAIAction('analyze_risk', content, entityData),
+    analyzeContactRisk: (content: string, entityData = null) => executeAIAction('analyze_contact_risk', content, entityData),
+    detectDuplicates: (content: string, entityData = null) => executeAIAction('detect_duplicates', content, entityData),
+    enrichData: (content: string, entityData = null) => executeAIAction('enrich_data', content, entityData),
     queryNaturalLanguage: (content: string, entityData = null) => executeAIAction('natural_language_query', content, entityData),
     isLoading,
     result,

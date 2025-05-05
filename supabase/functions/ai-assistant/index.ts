@@ -54,8 +54,29 @@ serve(async (req) => {
           prompt += `\n\nEntity Details: ${JSON.stringify(entityData)}`;
         }
         break;
+      case 'analyze_contact_risk':
+        systemPrompt = 'You are an AI risk analyst for a CRM system. Identify contact relationship risks based on provided data.';
+        prompt = `Analyze the following data about this contact and identify any risks to the relationship. Look for inactivity periods, missed follow-ups, negative sentiment, and other risk factors. Provide a risk score (Low, Medium, High) with specific concerns and mitigation suggestions:\n\n${content}`;
+        if (entityData) {
+          prompt += `\n\nContact Details: ${JSON.stringify(entityData)}`;
+        }
+        break;
+      case 'detect_duplicates':
+        systemPrompt = 'You are an AI data hygiene assistant for a CRM system. Analyze data for potential duplicates.';
+        prompt = `Analyze the following data and identify any potential duplicate records. Explain your reasoning and confidence level for each potential match:\n\n${content}`;
+        if (entityData) {
+          prompt += `\n\nData Records: ${JSON.stringify(entityData)}`;
+        }
+        break;
+      case 'enrich_data':
+        systemPrompt = 'You are an AI data enrichment assistant for a CRM system. Suggest data improvements based on available information.';
+        prompt = `Based on the following contact or company information, suggest missing data fields that could be enriched, and where possible, suggest potential values based on available data:\n\n${content}`;
+        if (entityData) {
+          prompt += `\n\nEntity Details: ${JSON.stringify(entityData)}`;
+        }
+        break;
       case 'natural_language_query':
-        systemPrompt = 'You are an AI assistant for a CRM system. Interpret natural language queries about CRM data and provide helpful responses.';
+        systemPrompt = 'You are an AI assistant for a CRM system. Interpret natural language queries about CRM data and provide helpful responses. Format your response as though you are presenting data from a real CRM. Use bullet points, lists, and clear sections to make your response easy to read and actionable.';
         prompt = `Based on the following CRM query and the available data, provide a helpful response: ${content}\n\nAvailable Data: ${JSON.stringify(entityData || {})}`;
         break;
       default:
@@ -81,7 +102,7 @@ serve(async (req) => {
           },
           { role: 'user', content: prompt }
         ],
-        max_tokens: 800,
+        max_tokens: 1000,
       }),
     });
 
