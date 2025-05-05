@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Card,
   CardContent,
@@ -45,12 +45,14 @@ import {
   Building2,
   DollarSign,
   Bell,
-  Mail
+  Mail,
+  Loader2
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { WorkflowFormData, Workflow as WorkflowType, useWorkflows } from '@/hooks/use-workflows';
 
 // Define trigger types
 const triggerTypes = [
@@ -84,13 +86,28 @@ const workflowSchema = z.object({
   })).min(1, 'At least one action is required'),
 });
 
-export function WorkflowBuilder() {
+type WorkflowBuilderProps = {
+  initialData: WorkflowType | null;
+  onSave: (workflow: WorkflowType) => void;
+};
+
+export function WorkflowBuilder({ initialData, onSave }: WorkflowBuilderProps) {
   const [actions, setActions] = useState<any[]>([{ id: `action-${Date.now()}`, type: '', config: {} }]);
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
+  const { createWorkflow, updateWorkflow } = useWorkflows();
   
   const form = useForm<z.infer<typeof workflowSchema>>({
     resolver: zodResolver(workflowSchema),
-    defaultValues: {
+    defaultValues: initialData ? {
+      name: initialData.name,
+      description: initialData.description || '',
+      trigger: {
+        type: initialData.trigger_type,
+        config: initialData.trigger_config,
+      },
+      actions: initialData.actions,
+    } : {
       name: '',
       description: '',
       trigger: {
@@ -100,6 +117,13 @@ export function WorkflowBuilder() {
       actions: [{ id: `action-${Date.now()}`, type: '', config: {} }],
     },
   });
+
+  // Update actions when initialData changes
+  useEffect(() => {
+    if (initialData?.actions) {
+      setActions(initialData.actions);
+    }
+  }, [initialData]);
 
   const addAction = () => {
     const newAction = { id: `action-${Date.now()}`, type: '', config: {} };
@@ -123,14 +147,33 @@ export function WorkflowBuilder() {
     form.setValue('actions', updatedActions);
   };
 
-  const onSubmit = (data: z.infer<typeof workflowSchema>) => {
-    // In a real application, we would save this to our database
-    console.log('Workflow data:', data);
-    
-    toast({
-      title: 'Workflow created',
-      description: 'Your workflow has been saved successfully.',
-    });
+  const onSubmit = async (data: z.infer<typeof workflowSchema>) => {
+    setIsSaving(true);
+    try {
+      let result;
+      
+      if (initialData) {
+        // Update existing workflow
+        result = await updateWorkflow(initialData.id, data);
+      } else {
+        // Create new workflow
+        result = await createWorkflow(data);
+      }
+      
+      if (result) {
+        onSave(result);
+      }
+    } catch (error) {
+      console.error('Error saving workflow:', error);
+      
+      toast({
+        title: 'Error',
+        description: 'There was a problem saving your workflow.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -530,14 +573,26 @@ export function WorkflowBuilder() {
               <Button 
                 type="submit" 
                 className="flex items-center gap-2"
+                disabled={isSaving}
               >
-                <Save className="h-4 w-4" />
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
                 Save Workflow
               </Button>
               <Button 
                 type="button" 
                 variant="outline" 
                 className="flex items-center gap-2"
+                disabled={isSaving}
+                onClick={() => {
+                  toast({
+                    title: 'Test run initiated',
+                    description: 'A test run of the workflow would be executed in a production environment.',
+                  });
+                }}
               >
                 <Play className="h-4 w-4" />
                 Test Run
