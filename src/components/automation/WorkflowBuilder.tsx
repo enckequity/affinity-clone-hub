@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Card,
@@ -86,6 +85,8 @@ const workflowSchema = z.object({
   })).min(1, 'At least one action is required'),
 });
 
+type FormValues = z.infer<typeof workflowSchema>;
+
 type WorkflowBuilderProps = {
   initialData: WorkflowType | null;
   onSave: (workflow: WorkflowType) => void;
@@ -97,25 +98,28 @@ export function WorkflowBuilder({ initialData, onSave }: WorkflowBuilderProps) {
   const { toast } = useToast();
   const { createWorkflow, updateWorkflow } = useWorkflows();
   
-  const form = useForm<z.infer<typeof workflowSchema>>({
-    resolver: zodResolver(workflowSchema),
-    defaultValues: initialData ? {
-      name: initialData.name,
-      description: initialData.description || '',
-      trigger: {
-        type: initialData.trigger_type,
-        config: initialData.trigger_config,
-      },
-      actions: initialData.actions,
-    } : {
-      name: '',
-      description: '',
-      trigger: {
-        type: '',
-        config: {},
-      },
-      actions: [{ id: `action-${Date.now()}`, type: '', config: {} }],
+  // Prepare default form values
+  const defaultValues: FormValues = initialData ? {
+    name: initialData.name,
+    description: initialData.description || '',
+    trigger: {
+      type: initialData.trigger_type,
+      config: initialData.trigger_config,
     },
+    actions: initialData.actions,
+  } : {
+    name: '',
+    description: '',
+    trigger: {
+      type: '',
+      config: {},
+    },
+    actions: [{ id: `action-${Date.now()}`, type: '', config: {} }],
+  };
+  
+  const form = useForm<FormValues>({
+    resolver: zodResolver(workflowSchema),
+    defaultValues: defaultValues,
   });
 
   // Update actions when initialData changes
@@ -147,17 +151,32 @@ export function WorkflowBuilder({ initialData, onSave }: WorkflowBuilderProps) {
     form.setValue('actions', updatedActions);
   };
 
-  const onSubmit = async (data: z.infer<typeof workflowSchema>) => {
+  const onSubmit = async (data: FormValues) => {
     setIsSaving(true);
     try {
       let result;
       
+      // Convert form data to WorkflowFormData
+      const workflowData: WorkflowFormData = {
+        name: data.name,
+        description: data.description,
+        trigger: {
+          type: data.trigger.type,
+          config: data.trigger.config || {},
+        },
+        actions: data.actions.map(action => ({
+          id: action.id,
+          type: action.type,
+          config: action.config || {},
+        })),
+      };
+      
       if (initialData) {
         // Update existing workflow
-        result = await updateWorkflow(initialData.id, data);
+        result = await updateWorkflow(initialData.id, workflowData);
       } else {
         // Create new workflow
-        result = await createWorkflow(data);
+        result = await createWorkflow(workflowData);
       }
       
       if (result) {

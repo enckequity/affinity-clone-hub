@@ -49,7 +49,19 @@ export const useWorkflows = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setWorkflows(data || []);
+      
+      // Ensure we convert JSON data to the correct format for Workflow type
+      const formattedData = data.map(workflow => ({
+        ...workflow,
+        trigger_config: typeof workflow.trigger_config === 'string' 
+          ? JSON.parse(workflow.trigger_config) 
+          : workflow.trigger_config,
+        actions: typeof workflow.actions === 'string' 
+          ? JSON.parse(workflow.actions) 
+          : workflow.actions
+      })) as Workflow[];
+      
+      setWorkflows(formattedData);
     } catch (error: any) {
       console.error('Error fetching workflows:', error);
       toast({
@@ -65,6 +77,13 @@ export const useWorkflows = () => {
   const createWorkflow = async (formData: WorkflowFormData) => {
     setIsLoading(true);
     try {
+      // Get the current user's ID
+      const { data: userData } = await supabase.auth.getUser();
+      
+      if (!userData?.user?.id) {
+        throw new Error('User not authenticated');
+      }
+      
       const { data, error } = await supabase
         .from('workflows')
         .insert({
@@ -74,6 +93,7 @@ export const useWorkflows = () => {
           trigger_config: formData.trigger.config,
           actions: formData.actions,
           status: 'inactive',
+          created_by: userData.user.id
         })
         .select('*')
         .single();
@@ -85,7 +105,7 @@ export const useWorkflows = () => {
         description: 'Your workflow has been created successfully.',
       });
       
-      return data;
+      return data as Workflow;
     } catch (error: any) {
       console.error('Error creating workflow:', error);
       toast({
@@ -122,7 +142,7 @@ export const useWorkflows = () => {
         description: 'Your workflow has been updated successfully.',
       });
       
-      return data;
+      return data as Workflow;
     } catch (error: any) {
       console.error('Error updating workflow:', error);
       toast({
@@ -165,6 +185,13 @@ export const useWorkflows = () => {
   const duplicateWorkflow = async (workflow: Workflow) => {
     setIsLoading(true);
     try {
+      // Get the current user's ID
+      const { data: userData } = await supabase.auth.getUser();
+      
+      if (!userData?.user?.id) {
+        throw new Error('User not authenticated');
+      }
+      
       const { id, created_at, updated_at, last_run, total_runs, ...workflowData } = workflow;
       
       const { data, error } = await supabase
@@ -173,6 +200,7 @@ export const useWorkflows = () => {
           ...workflowData,
           name: `${workflowData.name} (Copy)`,
           status: 'inactive',
+          created_by: userData.user.id
         })
         .select('*')
         .single();
@@ -184,7 +212,7 @@ export const useWorkflows = () => {
         description: 'The workflow has been duplicated successfully.',
       });
       
-      return data;
+      return data as Workflow;
     } catch (error: any) {
       console.error('Error duplicating workflow:', error);
       toast({
@@ -216,7 +244,7 @@ export const useWorkflows = () => {
         description: `The workflow has been ${newStatus === 'active' ? 'activated' : 'paused'} successfully.`,
       });
       
-      return data;
+      return data as Workflow;
     } catch (error: any) {
       console.error('Error toggling workflow status:', error);
       toast({
@@ -247,7 +275,7 @@ export const useWorkflows = () => {
         .from('workflows')
         .update({
           last_run: new Date().toISOString(),
-          total_runs: supabase.rpc('increment_total_runs', { row_id: id })
+          total_runs: await supabase.rpc('increment_total_runs', { row_id: id })
         })
         .eq('id', id)
         .select('*')
@@ -275,7 +303,7 @@ export const useWorkflows = () => {
         description: 'The workflow has been triggered and is now running.',
       });
       
-      return workflowData;
+      return workflowData as Workflow;
     } catch (error: any) {
       console.error('Error running workflow:', error);
       toast({
