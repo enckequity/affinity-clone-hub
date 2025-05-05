@@ -14,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, content } = await req.json();
+    const { action, content, entityData } = await req.json();
     const openAIKey = Deno.env.get('OPENAI_API_KEY');
     
     if (!openAIKey) {
@@ -25,6 +25,7 @@ serve(async (req) => {
     }
 
     let prompt = '';
+    let systemPrompt = 'You are an AI assistant for a CRM system. Provide concise, practical, and professional responses.';
     let response;
     
     switch (action) {
@@ -32,13 +33,30 @@ serve(async (req) => {
         prompt = `Draft a professional email for the following context: ${content}`;
         break;
       case 'summarize_relationship':
-        prompt = `Summarize the following business relationship and provide key insights: ${content}`;
+        systemPrompt = 'You are an AI relationship analyst for a CRM system. Analyze relationship data and provide insightful, actionable summaries.';
+        prompt = `Based on the following interaction history and relationship data, provide a concise summary of the relationship status, key insights, and potential opportunities:\n\n${content}`;
+        if (entityData) {
+          prompt += `\n\nEntity Details: ${JSON.stringify(entityData)}`;
+        }
         break;
       case 'score_deal':
-        prompt = `Based on the following deal details, provide a score from 1-100 and explain the reasoning: ${content}`;
+        systemPrompt = 'You are an AI deal analyst for a CRM system. Score deals based on provided information and explain your reasoning.';
+        prompt = `Based on the following deal details, provide a score from 1-100 and explain the reasoning. Consider factors like engagement level, timeline, communication frequency, and stakeholder involvement:\n\n${content}`;
         break;
       case 'suggest_followup':
-        prompt = `Suggest follow-up actions based on this interaction history: ${content}`;
+        systemPrompt = 'You are an AI assistant for a CRM system. Suggest strategic follow-up actions based on relationship history.';
+        prompt = `Suggest specific follow-up actions based on this interaction history. Focus on timing, approach, and content that would strengthen the relationship and advance opportunities:\n\n${content}`;
+        break;
+      case 'analyze_risk':
+        systemPrompt = 'You are an AI risk analyst for a CRM system. Identify relationship and deal risks based on provided data.';
+        prompt = `Analyze the following data and identify any risks to this relationship or deal. Provide a risk score (Low, Medium, High) with specific concerns and mitigation suggestions:\n\n${content}`;
+        if (entityData) {
+          prompt += `\n\nEntity Details: ${JSON.stringify(entityData)}`;
+        }
+        break;
+      case 'natural_language_query':
+        systemPrompt = 'You are an AI assistant for a CRM system. Interpret natural language queries about CRM data and provide helpful responses.';
+        prompt = `Based on the following CRM query and the available data, provide a helpful response: ${content}\n\nAvailable Data: ${JSON.stringify(entityData || {})}`;
         break;
       default:
         return new Response(
@@ -59,11 +77,11 @@ serve(async (req) => {
         messages: [
           { 
             role: 'system', 
-            content: 'You are an AI assistant for a CRM system. Provide concise, practical, and professional responses.'
+            content: systemPrompt
           },
           { role: 'user', content: prompt }
         ],
-        max_tokens: 500,
+        max_tokens: 800,
       }),
     });
 

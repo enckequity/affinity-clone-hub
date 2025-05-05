@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,10 +19,12 @@ import {
   MapPin,
   Globe,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Sparkles
 } from "lucide-react";
 import { RecentActivities } from '@/components/dashboard/RecentActivities';
 import { ContactForm } from './ContactForm';
+import { AIRelationshipSummary } from '../ai/AIRelationshipSummary';
 
 interface ContactDetailsProps {
   contact: any;
@@ -91,10 +92,16 @@ export function ContactDetails({ contact, onClose }: ContactDetailsProps) {
       </DialogHeader>
       
       <Tabs defaultValue="overview" className="mt-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
           <TabsTrigger value="deals">Deals</TabsTrigger>
+          <TabsTrigger value="ai-insights">
+            <span className="flex items-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              AI Insights
+            </span>
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="overview" className="space-y-6 mt-6">
@@ -294,6 +301,83 @@ export function ContactDetails({ contact, onClose }: ContactDetailsProps) {
                   </TableRow>
                 </TableBody>
               </Table>
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="ai-insights" className="mt-6">
+          <div className="space-y-6">
+            <AIRelationshipSummary 
+              entityType="contact" 
+              entityData={{
+                first_name: contact.name.split(' ')[0],
+                last_name: contact.name.split(' ')[1],
+                company: contact.company,
+                email: contact.email,
+                phone: contact.phone,
+                job_title: "VP of Marketing", // Mock data
+                notes: "Met at TechConf 2023. Interested in our enterprise solution for their marketing team."
+              }}
+              interactionHistory="Last contacted 3 days ago via email. Previous meeting scheduled 2 weeks ago. 3 calls in the past month."
+            />
+            
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium">AI-Suggested Next Actions</h3>
+              <div className="space-y-2">
+                <div className="flex items-start gap-2">
+                  <div className="h-6 w-6 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                    <Sparkles className="h-3 w-3 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Schedule quarterly business review</p>
+                    <p className="text-xs text-muted-foreground">Suggested timing: Within next 2 weeks</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-2">
+                  <div className="h-6 w-6 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                    <Sparkles className="h-3 w-3 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Share new case study on marketing analytics</p>
+                    <p className="text-xs text-muted-foreground">Matches their expressed interest in analytics</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-2">
+                  <div className="h-6 w-6 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                    <Sparkles className="h-3 w-3 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Invite to upcoming industry webinar</p>
+                    <p className="text-xs text-muted-foreground">Topic aligns with their role and interests</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium">AI-Generated Email Draft</h3>
+              <div className="bg-muted/30 p-3 rounded-md text-sm">
+                <p className="font-medium">Subject: Follow-up: Enterprise Marketing Solution Discussion</p>
+                <Separator className="my-2" />
+                <p>Hi {contact.name.split(' ')[0]},</p>
+                <br />
+                <p>I hope this message finds you well. I wanted to follow up on our conversation about implementing our enterprise marketing solution at {contact.company}.</p>
+                <br />
+                <p>Based on your team's needs, I've put together some additional information that might be helpful as you evaluate options. I've also included a case study from a similar company in your industry that achieved a 32% increase in marketing ROI after implementation.</p>
+                <br />
+                <p>Would you have time for a brief call next week to discuss any questions you might have? I'm available Tuesday or Thursday afternoon.</p>
+                <br />
+                <p>Best regards,</p>
+                <p>[Your Name]</p>
+              </div>
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm">
+                  <Edit className="mr-2 h-3.5 w-3.5" />
+                  Customize Email
+                </Button>
+              </div>
             </div>
           </div>
         </TabsContent>

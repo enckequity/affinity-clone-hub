@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,11 +17,14 @@ import {
   BarChart3,
   User,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Sparkles
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { RecentActivities } from '@/components/dashboard/RecentActivities';
 import { DealForm } from './DealForm';
+import { AIRelationshipSummary } from '../ai/AIRelationshipSummary';
+import { AlertTriangle } from "lucide-react";
 
 interface DealDetailsProps {
   deal: any;
@@ -89,9 +91,15 @@ export function DealDetails({ deal, onClose }: DealDetailsProps) {
       </DialogHeader>
       
       <Tabs defaultValue="overview" className="mt-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="ai-insights">
+            <span className="flex items-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              AI Insights
+            </span>
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="overview" className="space-y-6 mt-6">
@@ -263,6 +271,117 @@ export function DealDetails({ deal, onClose }: DealDetailsProps) {
             
             <div className="pb-4">
               <RecentActivities />
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="ai-insights" className="mt-6">
+          <div className="space-y-6">
+            <AIRelationshipSummary 
+              entityType="deal"
+              entityData={{
+                name: deal.name,
+                company: deal.company,
+                stage: deal.stage,
+                stageLabel: deal.stageLabel,
+                value: deal.value,
+                expectedCloseDate: deal.expectedCloseDate,
+                probability: deal.probability,
+              }}
+              interactionHistory="Last updated 5 days ago. Proposal sent 2 weeks ago. Initial discovery call 1 month ago."
+            />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">AI Deal Health Analysis</h3>
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-xs">Overall Health</span>
+                      <span className="text-xs font-bold">72%</span>
+                    </div>
+                    <Progress value={72} className="h-2" />
+                  </div>
+                  
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-xs">Engagement Level</span>
+                      <span className="text-xs font-bold">65%</span>
+                    </div>
+                    <Progress value={65} className="h-2" />
+                  </div>
+                  
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-xs">Champion Relationship</span>
+                      <span className="text-xs font-bold">80%</span>
+                    </div>
+                    <Progress value={80} className="h-2" />
+                  </div>
+                  
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-xs">Decision Maker Access</span>
+                      <span className="text-xs font-bold">45%</span>
+                    </div>
+                    <Progress value={45} className="h-2 bg-red-100" />
+                  </div>
+                </div>
+                
+                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
+                  <div className="flex items-center gap-1 font-medium mb-1">
+                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                    Attention Required
+                  </div>
+                  <p>This deal lacks sufficient engagement with key decision makers. Consider requesting a meeting with the CTO who will need to sign off on this proposal.</p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">AI-Suggested Next Actions</h3>
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2">
+                    <div className="h-6 w-6 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                      <Sparkles className="h-3 w-3 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Request meeting with CTO</p>
+                      <p className="text-xs text-muted-foreground">Suggested timing: This week</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-2">
+                    <div className="h-6 w-6 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                      <Sparkles className="h-3 w-3 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Send ROI calculator</p>
+                      <p className="text-xs text-muted-foreground">Helps justify investment to finance team</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-2">
+                    <div className="h-6 w-6 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                      <Sparkles className="h-3 w-3 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Offer technical demo to IT team</p>
+                      <p className="text-xs text-muted-foreground">Address implementation concerns early</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <h3 className="text-sm font-medium mt-4">Winning Strategy</h3>
+                <div className="bg-muted/30 p-3 rounded-md text-sm">
+                  <p>This deal is in the proposal stage with moderate engagement. To increase success probability:</p>
+                  <ul className="list-disc pl-4 mt-2 space-y-1">
+                    <li>Expand relationships beyond current champion</li>
+                    <li>Quantify ROI more specifically for their industry</li>
+                    <li>Address competitive comparisons proactively</li>
+                    <li>Propose phased implementation to reduce perceived risk</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         </TabsContent>

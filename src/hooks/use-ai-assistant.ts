@@ -3,7 +3,13 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from './use-toast';
 
-type AIAction = 'draft_email' | 'summarize_relationship' | 'score_deal' | 'suggest_followup';
+type AIAction = 
+  | 'draft_email' 
+  | 'summarize_relationship' 
+  | 'score_deal' 
+  | 'suggest_followup'
+  | 'analyze_risk'
+  | 'natural_language_query';
 
 interface UseAIAssistantOptions {
   onSuccess?: (result: string) => void;
@@ -16,14 +22,14 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
   const [error, setError] = useState<Error | null>(null);
   const { toast } = useToast();
 
-  const executeAIAction = async (action: AIAction, content: string) => {
+  const executeAIAction = async (action: AIAction, content: string, entityData: any = null) => {
     setIsLoading(true);
     setError(null);
     setResult(null);
 
     try {
       const { data, error } = await supabase.functions.invoke('ai-assistant', {
-        body: { action, content },
+        body: { action, content, entityData },
       });
 
       if (error) {
@@ -62,9 +68,11 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
   return {
     executeAIAction,
     draftEmail: (content: string) => executeAIAction('draft_email', content),
-    summarizeRelationship: (content: string) => executeAIAction('summarize_relationship', content),
+    summarizeRelationship: (content: string, entityData = null) => executeAIAction('summarize_relationship', content, entityData),
     scoreDeal: (content: string) => executeAIAction('score_deal', content),
     suggestFollowup: (content: string) => executeAIAction('suggest_followup', content),
+    analyzeRisk: (content: string, entityData = null) => executeAIAction('analyze_risk', content, entityData),
+    queryNaturalLanguage: (content: string, entityData = null) => executeAIAction('natural_language_query', content, entityData),
     isLoading,
     result,
     error,
