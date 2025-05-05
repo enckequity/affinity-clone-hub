@@ -3,16 +3,18 @@ import React, { useState } from 'react';
 import { useNavigate, Outlet } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Search, User, ChevronRight, ChevronLeft, Menu } from "lucide-react";
+import { Search, Menu } from "lucide-react";
 import { AppNav } from './AppNav';
 import { UserMenu } from './UserMenu';
 import { SearchInput } from './SearchInput';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function AppLayout() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const { user } = useAuth();
   
   return (
     <SidebarProvider defaultOpen={!isMobile}>

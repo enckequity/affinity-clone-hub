@@ -1,8 +1,11 @@
 
 import React from 'react';
 import { Outlet } from 'react-router-dom';
+import { useAuthRedirect } from '@/hooks/use-auth-redirect';
 
 export function AuthLayout() {
+  useAuthRedirect();
+  
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-indigo-50 p-4">
       <div className="w-full max-w-md">
