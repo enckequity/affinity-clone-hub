@@ -15,7 +15,7 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   
   return (
-    <SidebarProvider defaultCollapsed={isMobile}>
+    <SidebarProvider defaultOpen={!isMobile}>
       <div className="min-h-screen flex w-full">
         <AppNav />
         
