@@ -1,5 +1,5 @@
 
-import { FileImportResult } from "@/types/fileImport";
+import { ImportResult } from "@/types/fileImport";
 
 // Interface for iMazing CSV format
 export interface IMazingRecord {
