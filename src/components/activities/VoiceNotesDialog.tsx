@@ -13,9 +13,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { AudioRecorder } from "../ui/audio-recorder";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface EntityNote {
   entityId: string;
@@ -39,6 +40,7 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
   const [voiceRecordingId, setVoiceRecordingId] = useState<string | null>(null);
   const [companies, setCompanies] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -46,6 +48,7 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
   useEffect(() => {
     if (open) {
       fetchEntities();
+      setError(null);
     } else {
       // Reset state when dialog closes
       resetState();
@@ -59,6 +62,7 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
     setAudioBase64('');
     setAudioDuration(0);
     setVoiceRecordingId(null);
+    setError(null);
   };
   
   const fetchEntities = async () => {
@@ -81,6 +85,7 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
       
     } catch (error: any) {
       console.error('Error fetching entities:', error);
+      setError('Could not fetch companies and contacts. Please try again.');
       toast({
         title: "Error fetching data",
         description: error.message || "Could not fetch companies and contacts",
@@ -90,6 +95,7 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
   };
   
   const handleRecordingComplete = async (base64Audio: string, duration: number) => {
+    setError(null);
     setAudioBase64(base64Audio);
     setAudioDuration(duration);
     setStep('processing');
@@ -97,6 +103,12 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
     try {
       if (!user) {
         throw new Error("You must be logged in to record voice notes");
+      }
+      
+      console.log("Audio received, length:", base64Audio.length);
+      
+      if (!base64Audio || base64Audio.length < 100) {
+        throw new Error("Audio recording too short or empty");
       }
 
       // First, save the recording
@@ -109,24 +121,38 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
         .select()
         .single();
         
-      if (recordingError) throw recordingError;
+      if (recordingError) {
+        console.error("Error saving recording:", recordingError);
+        throw recordingError;
+      }
+      
       setVoiceRecordingId(recordingData.id);
+      console.log("Voice recording saved with ID:", recordingData.id);
       
       // Process the audio with voice-to-text function
+      console.log("Sending audio to voice-to-text function");
       const { data: transcriptionData, error: transcriptionError } = await supabase.functions
         .invoke('voice-to-text', {
           body: { audio: base64Audio }
         });
         
-      if (transcriptionError) throw transcriptionError;
-      if (!transcriptionData || !transcriptionData.text) {
-        throw new Error('No transcription returned');
+      if (transcriptionError) {
+        console.error("Transcription error:", transcriptionError);
+        throw new Error(`Transcription failed: ${transcriptionError.message || 'Unknown error'}`);
       }
+      
+      if (!transcriptionData || !transcriptionData.text) {
+        console.error("No transcription returned", transcriptionData);
+        throw new Error('No transcription returned. Please try again with a clearer recording.');
+      }
+      
+      console.log("Transcription received:", transcriptionData.text);
       
       // Update the transcript
       setTranscript(transcriptionData.text);
       
       // Parse the transcript into separate notes
+      console.log("Sending transcript to parse-notes function");
       const { data: parseData, error: parseError } = await supabase.functions
         .invoke('parse-notes', {
           body: { 
@@ -138,13 +164,20 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
           }
         });
         
-      if (parseError) throw parseError;
-      if (!parseData || !parseData.notes) {
-        throw new Error('No parsed notes returned');
+      if (parseError) {
+        console.error("Parsing error:", parseError);
+        throw new Error(`Note parsing failed: ${parseError.message || 'Unknown error'}`);
       }
       
+      if (!parseData || !parseData.notes) {
+        console.error("No parsed notes returned", parseData);
+        throw new Error('No notes could be extracted from your recording. Try mentioning company or contact names explicitly.');
+      }
+      
+      console.log("Notes parsed successfully:", parseData.notes);
+      
       // Update the parsed notes
-      setParsedNotes(parseData.notes);
+      setParsedNotes(parseData.notes || []);
       
       // Update voice recording with transcript
       await supabase
@@ -159,12 +192,13 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
       
     } catch (error: any) {
       console.error('Error processing voice recording:', error);
+      setError(error.message || "Failed to process the voice recording");
+      setStep('record');
       toast({
         title: "Error processing recording",
         description: error.message || "Failed to process the voice recording",
         variant: "destructive",
       });
-      setStep('record');
     }
   };
   
@@ -175,6 +209,7 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
   };
   
   const handleSaveNotes = async () => {
+    setError(null);
     setStep('saving');
     
     try {
@@ -213,12 +248,13 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
       
     } catch (error: any) {
       console.error('Error saving notes:', error);
+      setError(error.message || "Failed to save notes");
+      setStep('review');
       toast({
         title: "Error saving notes",
         description: error.message || "Failed to save notes",
         variant: "destructive",
       });
-      setStep('review');
     }
   };
 
@@ -236,15 +272,23 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
         </DialogHeader>
         
         <div className="space-y-6 py-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
           {step === 'record' && (
             <div className="space-y-6">
               <div className="bg-muted/50 p-4 rounded-md space-y-2">
                 <h3 className="font-medium text-sm">How to use this feature:</h3>
                 <ul className="text-sm space-y-1 list-disc pl-4">
                   <li>Record yourself speaking clearly about multiple customers</li>
-                  <li>Mention customer names explicitly: "For Acme Inc, the latest project..."</li>
+                  <li>Mention company or contact names explicitly: "For Acme Inc, the latest project..."</li>
                   <li>Use clear transitions: "Moving on to Global Finance..."</li>
                   <li>Speak in complete sentences for better transcription</li>
+                  <li>Ensure you're in a quiet environment with minimal background noise</li>
                 </ul>
               </div>
               

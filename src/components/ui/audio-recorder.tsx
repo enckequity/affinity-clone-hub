@@ -1,8 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
-import { Mic, Square, Loader2 } from "lucide-react"
+import { Mic, Square, Loader2, AlertCircle } from "lucide-react"
 import { cn } from '@/lib/utils'
+import { useToast } from "@/hooks/use-toast"
 
 interface AudioRecorderProps {
   onRecordingComplete: (base64Audio: string, duration: number) => void
@@ -13,9 +14,11 @@ interface AudioRecorderProps {
 export function AudioRecorder({ onRecordingComplete, isProcessing = false, className }: AudioRecorderProps) {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
+  const [error, setError] = useState<string | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<number | null>(null)
+  const { toast } = useToast()
 
   useEffect(() => {
     return () => {
@@ -27,12 +30,19 @@ export function AudioRecorder({ onRecordingComplete, isProcessing = false, class
   }, [])
 
   const startRecording = async () => {
+    setError(null)
     chunksRef.current = []
     
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      })
       
-      // Initialize the MediaRecorder
+      // Initialize the MediaRecorder with better options
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm'
       })
@@ -46,22 +56,66 @@ export function AudioRecorder({ onRecordingComplete, isProcessing = false, class
         }
       }
       
+      mediaRecorder.onerror = (event) => {
+        console.error("MediaRecorder error:", event)
+        setError("Recording error occurred")
+        stopRecording()
+        
+        toast({
+          title: "Recording Error",
+          description: "An error occurred while recording audio.",
+          variant: "destructive"
+        })
+      }
+      
       mediaRecorder.onstop = async () => {
-        // Combine chunks into a single blob
-        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' })
-        
-        // Convert blob to base64
-        const reader = new FileReader()
-        reader.readAsDataURL(audioBlob) 
-        reader.onloadend = function() {
-          const base64data = reader.result as string
-          // Remove the data URL prefix (e.g., "data:audio/webm;base64,")
-          const base64Audio = base64data.split(',')[1]
-          onRecordingComplete(base64Audio, recordingTime)
+        try {
+          // Combine chunks into a single blob
+          if (chunksRef.current.length === 0) {
+            throw new Error("No audio data captured")
+          }
+          
+          const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' })
+          
+          if (audioBlob.size < 100) {
+            throw new Error("Audio recording too short or empty")
+          }
+          
+          console.log("Audio recording complete, blob size:", audioBlob.size, "bytes")
+          
+          // Convert blob to base64
+          const reader = new FileReader()
+          reader.readAsDataURL(audioBlob) 
+          reader.onloadend = function() {
+            const base64data = reader.result as string
+            // Remove the data URL prefix (e.g., "data:audio/webm;base64,")
+            const base64Audio = base64data.split(',')[1]
+            console.log("Base64 audio length:", base64Audio.length)
+            onRecordingComplete(base64Audio, recordingTime)
+          }
+          reader.onerror = function(error) {
+            console.error("Error converting audio to base64:", error)
+            setError("Failed to process recording")
+            
+            toast({
+              title: "Processing Error",
+              description: "Failed to process the audio recording.",
+              variant: "destructive"
+            })
+          }
+          
+          // Stop all tracks on the stream to release the microphone
+          stream.getTracks().forEach(track => track.stop())
+        } catch (error) {
+          console.error("Error processing recording:", error)
+          setError(error.message || "Failed to process recording")
+          
+          toast({
+            title: "Processing Error",
+            description: error.message || "Failed to process the audio recording.",
+            variant: "destructive"
+          })
         }
-        
-        // Stop all tracks on the stream to release the microphone
-        stream.getTracks().forEach(track => track.stop())
       }
       
       // Start recording
@@ -75,13 +129,24 @@ export function AudioRecorder({ onRecordingComplete, isProcessing = false, class
       }, 1000)
     } catch (error) {
       console.error('Error starting recording:', error)
-      alert('Could not access the microphone. Please ensure you have granted permission.')
+      setError("Microphone access denied")
+      
+      toast({
+        title: "Microphone Access Denied",
+        description: "Could not access the microphone. Please ensure you have granted permission.",
+        variant: "destructive"
+      })
     }
   }
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop()
+      try {
+        mediaRecorderRef.current.stop()
+      } catch (error) {
+        console.error("Error stopping media recorder:", error)
+      }
+      
       setIsRecording(false)
       
       if (timerRef.current) {
@@ -98,7 +163,14 @@ export function AudioRecorder({ onRecordingComplete, isProcessing = false, class
   }
   
   return (
-    <div className={cn("flex items-center gap-4", className)}>
+    <div className={cn("flex flex-col items-center gap-4", className)}>
+      {error && (
+        <div className="flex items-center gap-2 text-sm text-destructive font-medium bg-destructive/10 px-3 py-2 rounded-md w-full">
+          <AlertCircle className="h-4 w-4" />
+          <span>{error}</span>
+        </div>
+      )}
+      
       {isProcessing ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
