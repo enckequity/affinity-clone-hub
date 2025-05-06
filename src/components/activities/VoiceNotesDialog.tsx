@@ -9,22 +9,15 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { AudioRecorder } from "../ui/audio-recorder";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, CheckCircle2, XCircle, AlertCircle, RefreshCw } from "lucide-react";
-import { Badge } from "../ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-
-interface EntityNote {
-  entityId: string;
-  entityName: string;
-  entityType: 'company' | 'contact';
-  content: string;
-  isValid?: boolean;
-}
+import { EntityNote } from "./voice-notes/types";
+import { RecordingStep } from "./voice-notes/RecordingStep";
+import { ProcessingStep } from "./voice-notes/ProcessingStep";
+import { ReviewStep } from "./voice-notes/ReviewStep";
+import { SavingStep } from "./voice-notes/SavingStep";
+import { ErrorDisplay } from "./voice-notes/ErrorDisplay";
 
 interface VoiceNotesDialogProps {
   open: boolean;
@@ -319,142 +312,38 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
         </DialogHeader>
         
         <div className="space-y-6 py-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-              
-              {/* Show retry button for parsing errors */}
-              {step === 'processing' && parsingRetries < 2 && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-2" 
-                  onClick={handleRetryParsing}
-                >
-                  <RefreshCw className="h-4 w-4 mr-1" /> Retry
-                </Button>
-              )}
-              
-              {/* Show detailed error if available */}
-              {detailedError && (
-                <div className="mt-2 text-xs opacity-80 bg-destructive/10 p-2 rounded">
-                  <details>
-                    <summary>Technical details</summary>
-                    <pre className="whitespace-pre-wrap">{detailedError}</pre>
-                  </details>
-                </div>
-              )}
-            </Alert>
-          )}
+          <ErrorDisplay 
+            error={error}
+            detailedError={detailedError}
+            step={step}
+            parsingRetries={parsingRetries}
+            onRetry={handleRetryParsing}
+          />
           
           {step === 'record' && (
-            <div className="space-y-6">
-              <div className="bg-muted/50 p-4 rounded-md space-y-2">
-                <h3 className="font-medium text-sm">How to use this feature:</h3>
-                <ul className="text-sm space-y-1 list-disc pl-4">
-                  <li>Record yourself speaking clearly about multiple customers</li>
-                  <li>Mention company or contact names explicitly: "For Acme Inc, the latest project..."</li>
-                  <li>Use clear transitions: "Moving on to Global Finance..."</li>
-                  <li>Speak in complete sentences for better transcription</li>
-                  <li>Ensure you're in a quiet environment with minimal background noise</li>
-                </ul>
-              </div>
-              
-              <div className="flex justify-center py-6">
-                <AudioRecorder onRecordingComplete={handleRecordingComplete} />
-              </div>
-            </div>
+            <RecordingStep onRecordingComplete={handleRecordingComplete} />
           )}
           
           {step === 'processing' && (
-            <div className="flex flex-col items-center justify-center py-8 space-y-4">
-              {error ? (
-                <div className="text-center">
-                  <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-2" />
-                  <p>Processing encountered an error</p>
-                  
-                  {parsingRetries < 2 && transcript && (
-                    <Button 
-                      onClick={handleRetryParsing} 
-                      variant="outline" 
-                      className="mt-4"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-1" /> Retry Parsing
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                  <p className="text-center">Processing your recording and extracting customer notes...</p>
-                  <p className="text-sm text-muted-foreground">This may take a minute. Please don't close this window.</p>
-                </>
-              )}
-            </div>
+            <ProcessingStep 
+              error={error}
+              transcript={transcript}
+              parsingRetries={parsingRetries}
+              onRetry={handleRetryParsing}
+              onStartOver={() => setStep('record')}
+            />
           )}
           
           {step === 'review' && (
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-medium">Full Transcript</h3>
-                  <Badge variant="outline" className="font-normal">
-                    {Math.floor(audioDuration / 60)}:{(audioDuration % 60).toString().padStart(2, '0')}
-                  </Badge>
-                </div>
-                <Textarea 
-                  value={transcript} 
-                  readOnly 
-                  className="h-24 bg-muted/30 resize-none"
-                />
-              </div>
-              
-              <div className="space-y-4">
-                <h3 className="font-medium">
-                  Extracted Notes ({parsedNotes.length})
-                </h3>
-                
-                {parsedNotes.length === 0 ? (
-                  <div className="bg-muted p-4 rounded-md text-center">
-                    <p>No customer references were detected in your recording.</p>
-                    <p className="text-sm text-muted-foreground mt-1">Try recording again and mention customer names clearly.</p>
-                  </div>
-                ) : (
-                  parsedNotes.map((note, index) => (
-                    <div key={index} className="border rounded-md p-4 space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-medium">{note.entityName}</h4>
-                          <p className="text-xs text-muted-foreground">
-                            {note.entityType === 'company' ? 'Company' : 'Contact'}
-                          </p>
-                        </div>
-                        {note.isValid === false ? (
-                          <XCircle className="h-5 w-5 text-destructive" />
-                        ) : (
-                          <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        )}
-                      </div>
-                      <Textarea
-                        value={note.content}
-                        onChange={(e) => handleNoteContentChange(index, e.target.value)}
-                        placeholder="Note content"
-                        className="min-h-[80px]"
-                      />
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            <ReviewStep
+              transcript={transcript}
+              audioDuration={audioDuration}
+              parsedNotes={parsedNotes}
+              onNoteContentChange={handleNoteContentChange}
+            />
           )}
           
-          {step === 'saving' && (
-            <div className="flex flex-col items-center justify-center py-8 space-y-4">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="text-center">Saving notes to customer records...</p>
-            </div>
-          )}
+          {step === 'saving' && <SavingStep />}
         </div>
         
         <DialogFooter>
