@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { AudioRecorder } from "../ui/audio-recorder";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, AlertCircle, RefreshCw } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -41,6 +41,8 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
   const [companies, setCompanies] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [detailedError, setDetailedError] = useState<string | null>(null);
+  const [parsingRetries, setParsingRetries] = useState<number>(0);
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -49,6 +51,7 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
     if (open) {
       fetchEntities();
       setError(null);
+      setDetailedError(null);
     } else {
       // Reset state when dialog closes
       resetState();
@@ -63,6 +66,8 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
     setAudioDuration(0);
     setVoiceRecordingId(null);
     setError(null);
+    setDetailedError(null);
+    setParsingRetries(0);
   };
   
   const fetchEntities = async () => {
@@ -96,6 +101,7 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
   
   const handleRecordingComplete = async (base64Audio: string, duration: number) => {
     setError(null);
+    setDetailedError(null);
     setAudioBase64(base64Audio);
     setAudioDuration(duration);
     setStep('processing');
@@ -152,32 +158,7 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
       setTranscript(transcriptionData.text);
       
       // Parse the transcript into separate notes
-      console.log("Sending transcript to parse-notes function");
-      const { data: parseData, error: parseError } = await supabase.functions
-        .invoke('parse-notes', {
-          body: { 
-            transcript: transcriptionData.text,
-            entities: {
-              companies: companies,
-              contacts: contacts
-            }
-          }
-        });
-        
-      if (parseError) {
-        console.error("Parsing error:", parseError);
-        throw new Error(`Note parsing failed: ${parseError.message || 'Unknown error'}`);
-      }
-      
-      if (!parseData || !parseData.notes) {
-        console.error("No parsed notes returned", parseData);
-        throw new Error('No notes could be extracted from your recording. Try mentioning company or contact names explicitly.');
-      }
-      
-      console.log("Notes parsed successfully:", parseData.notes);
-      
-      // Update the parsed notes
-      setParsedNotes(parseData.notes || []);
+      await parseTranscript(transcriptionData.text);
       
       // Update voice recording with transcript
       await supabase
@@ -187,8 +168,6 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
           status: 'completed'
         })
         .eq('id', recordingData.id);
-      
-      setStep('review');
       
     } catch (error: any) {
       console.error('Error processing voice recording:', error);
@@ -202,6 +181,73 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
     }
   };
   
+  const parseTranscript = async (text: string) => {
+    try {
+      console.log("Sending transcript to parse-notes function");
+      const { data: parseData, error: parseError } = await supabase.functions
+        .invoke('parse-notes', {
+          body: { 
+            transcript: text,
+            entities: {
+              companies: companies,
+              contacts: contacts
+            }
+          }
+        });
+        
+      if (parseError) {
+        console.error("Parsing error:", parseError);
+        throw new Error(`Note parsing failed: ${parseError.message || 'Unknown error'}`);
+      }
+      
+      if (!parseData) {
+        console.error("No parsed data returned");
+        throw new Error('No response from parsing service');
+      }
+      
+      if (parseData.error) {
+        console.error("Error in parsing response:", parseData.error);
+        setDetailedError(parseData.details || parseData.error);
+        throw new Error(`Note parsing failed: ${parseData.error}`);
+      }
+      
+      if (!parseData.notes || !Array.isArray(parseData.notes)) {
+        console.error("Invalid notes structure:", parseData);
+        throw new Error('Invalid notes structure returned from parsing service');
+      }
+      
+      console.log("Notes parsed successfully:", parseData.notes);
+      
+      // Update the parsed notes
+      setParsedNotes(parseData.notes || []);
+      setStep('review');
+    } catch (error: any) {
+      console.error("Error parsing transcript:", error);
+      setError(error.message || "Failed to parse transcript");
+      
+      // Only show retry if we haven't tried too many times
+      if (parsingRetries < 2) {
+        setStep('processing'); // Keep in processing state for retry
+      } else {
+        setStep('record'); // Go back to record state after too many retries
+        toast({
+          title: "Parsing failed",
+          description: "Unable to extract notes from your recording after multiple attempts",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+  
+  const handleRetryParsing = async () => {
+    if (!transcript) return;
+    
+    setParsingRetries(prev => prev + 1);
+    setError(null);
+    setDetailedError(null);
+    await parseTranscript(transcript);
+  };
+  
   const handleNoteContentChange = (index: number, content: string) => {
     const updatedNotes = [...parsedNotes];
     updatedNotes[index] = { ...updatedNotes[index], content };
@@ -210,6 +256,7 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
   
   const handleSaveNotes = async () => {
     setError(null);
+    setDetailedError(null);
     setStep('saving');
     
     try {
@@ -276,6 +323,28 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
+              
+              {/* Show retry button for parsing errors */}
+              {step === 'processing' && parsingRetries < 2 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2" 
+                  onClick={handleRetryParsing}
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" /> Retry
+                </Button>
+              )}
+              
+              {/* Show detailed error if available */}
+              {detailedError && (
+                <div className="mt-2 text-xs opacity-80 bg-destructive/10 p-2 rounded">
+                  <details>
+                    <summary>Technical details</summary>
+                    <pre className="whitespace-pre-wrap">{detailedError}</pre>
+                  </details>
+                </div>
+              )}
             </Alert>
           )}
           
@@ -300,9 +369,28 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
           
           {step === 'processing' && (
             <div className="flex flex-col items-center justify-center py-8 space-y-4">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="text-center">Processing your recording and extracting customer notes...</p>
-              <p className="text-sm text-muted-foreground">This may take a minute. Please don't close this window.</p>
+              {error ? (
+                <div className="text-center">
+                  <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-2" />
+                  <p>Processing encountered an error</p>
+                  
+                  {parsingRetries < 2 && transcript && (
+                    <Button 
+                      onClick={handleRetryParsing} 
+                      variant="outline" 
+                      className="mt-4"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" /> Retry Parsing
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                  <p className="text-center">Processing your recording and extracting customer notes...</p>
+                  <p className="text-sm text-muted-foreground">This may take a minute. Please don't close this window.</p>
+                </>
+              )}
             </div>
           )}
           
@@ -375,8 +463,8 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
           )}
           
           {step === 'processing' && (
-            <Button variant="outline" disabled>
-              Processing...
+            <Button variant="outline" disabled={!error} onClick={() => setStep('record')}>
+              {error ? "Start Over" : "Processing..."}
             </Button>
           )}
           
