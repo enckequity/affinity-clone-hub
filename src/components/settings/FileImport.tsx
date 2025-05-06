@@ -18,6 +18,25 @@ interface ImportResult {
   sync_id: string;
 }
 
+// Interface for iMazing CSV format
+interface IMazingRecord {
+  'Chat Session'?: string;
+  'Message Date'?: string;
+  'Delivered Date'?: string;
+  'Read Date'?: string;
+  'Edited Date'?: string;
+  'Service'?: string;
+  'Type'?: string;
+  'Sender ID'?: string;
+  'Sender Name'?: string;
+  'Status'?: string;
+  'Replying to'?: string;
+  'Subject'?: string;
+  'Text'?: string;
+  'Attachment'?: string;
+  'Attachment type'?: string;
+}
+
 export function FileImport() {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
@@ -27,6 +46,7 @@ export function FileImport() {
   const [error, setError] = useState<string | null>(null);
   const [parsedData, setParsedData] = useState<any[] | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [fileFormat, setFileFormat] = useState<'standard' | 'imazing' | 'unknown'>('unknown');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -38,6 +58,7 @@ export function FileImport() {
     setResult(null);
     setParsedData(null);
     setShowConfirm(false);
+    setFileFormat('unknown');
     
     // Validate file type
     if (!selectedFile.name.endsWith('.json') && !selectedFile.name.endsWith('.csv')) {
@@ -57,24 +78,38 @@ export function FileImport() {
           if (!Array.isArray(data)) {
             data = [data]; // Convert object to array if it's not already an array
           }
+          setFileFormat('standard');
         } else {
-          // Simple CSV parsing (could use a library for more robust parsing)
+          // CSV parsing
           const csv = event.target.result as string;
           const lines = csv.split('\n');
-          const headers = lines[0].split(',').map(h => h.trim());
+          const headers = lines[0].split('\t').map(h => h.trim());
           
-          data = lines.slice(1).map(line => {
-            if (!line.trim()) return null; // Skip empty lines
-            
-            const values = line.split(',');
-            const obj: Record<string, string> = {};
-            
-            headers.forEach((header, i) => {
-              obj[header] = values[i]?.trim() || '';
-            });
-            
-            return obj;
-          }).filter(Boolean);
+          // Check if this is an iMazing CSV format
+          const isIMazingFormat = headers.includes('Chat Session') && 
+                                 headers.includes('Message Date') && 
+                                 headers.includes('Type') && 
+                                 headers.includes('Sender ID');
+          
+          if (isIMazingFormat) {
+            setFileFormat('imazing');
+            data = parseIMazingCSV(csv);
+          } else {
+            setFileFormat('standard');
+            // Standard CSV parsing
+            data = lines.slice(1).map(line => {
+              if (!line.trim()) return null; // Skip empty lines
+              
+              const values = line.split(',');
+              const obj: Record<string, string> = {};
+              
+              headers.forEach((header, i) => {
+                obj[header] = values[i]?.trim() || '';
+              });
+              
+              return obj;
+            }).filter(Boolean);
+          }
         }
         
         if (!data || data.length === 0) {
@@ -94,10 +129,54 @@ export function FileImport() {
       setError("Failed to read the file");
     };
     
-    if (selectedFile.name.endsWith('.json')) {
-      reader.readAsText(selectedFile);
-    } else {
-      reader.readAsText(selectedFile);
+    reader.readAsText(selectedFile);
+  };
+  
+  // Function to parse iMazing CSV format (tab-separated)
+  const parseIMazingCSV = (csvContent: string): any[] => {
+    try {
+      const lines = csvContent.split('\n');
+      const headers = lines[0].split('\t').map(h => h.trim());
+      
+      // Parse each line into an object with the headers as keys
+      const iMazingRecords: IMazingRecord[] = lines.slice(1)
+        .filter(line => line.trim())
+        .map(line => {
+          const values = line.split('\t');
+          const record: Record<string, string> = {};
+          
+          headers.forEach((header, i) => {
+            record[header] = values[i]?.trim() || '';
+          });
+          
+          return record as IMazingRecord;
+        });
+      
+      // Convert iMazing records to our communications format
+      return iMazingRecords.map(record => {
+        // Determine direction based on Type field
+        let direction: string;
+        if (record['Type'] === 'Outgoing') {
+          direction = 'outgoing';
+        } else if (record['Type'] === 'Incoming') {
+          direction = 'incoming';
+        } else {
+          direction = 'unknown';
+        }
+        
+        // Map iMazing format to our communications format
+        return {
+          contact_phone: record['Sender ID'] || '',
+          contact_name: record['Sender Name'] || record['Chat Session'] || '',
+          direction: direction,
+          type: 'text', // Assuming all iMessage/SMS are text type
+          content: record['Text'] || '',
+          timestamp: record['Message Date'] || new Date().toISOString(),
+        };
+      }).filter(record => record.contact_phone && record.timestamp);
+    } catch (error) {
+      console.error("Error parsing iMazing CSV:", error);
+      throw new Error("Failed to parse iMazing CSV format");
     }
   };
   
@@ -164,6 +243,7 @@ export function FileImport() {
     setParsedData(null);
     setShowConfirm(false);
     setUploadProgress(0);
+    setFileFormat('unknown');
   };
   
   return (
@@ -187,7 +267,7 @@ export function FileImport() {
                 disabled={isUploading}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Supported formats: JSON, CSV
+                Supported formats: JSON, CSV, iMazing Export (CSV)
               </p>
             </div>
             
@@ -206,7 +286,9 @@ export function FileImport() {
                 <Info className="h-4 w-4" />
                 <AlertTitle>Ready to Import</AlertTitle>
                 <AlertDescription>
-                  Found {parsedData.length} communication records. Click 'Import Data' to continue.
+                  {fileFormat === 'imazing' 
+                    ? `Found ${parsedData.length} communication records from iMazing. Click 'Import Data' to continue.`
+                    : `Found ${parsedData.length} communication records. Click 'Import Data' to continue.`}
                 </AlertDescription>
               </Alert>
             )}
