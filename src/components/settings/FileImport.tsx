@@ -83,13 +83,19 @@ export function FileImport() {
           // CSV parsing
           const csv = event.target.result as string;
           const lines = csv.split('\n');
-          const headers = lines[0].split('\t').map(h => h.trim());
+          
+          // Check if this is a tab-separated file (iMazing format)
+          const firstLine = lines[0];
+          const isTabSeparated = firstLine.includes('\t');
+          const separator = isTabSeparated ? '\t' : ',';
+          
+          const headers = lines[0].split(separator).map(h => h.trim());
           
           // Check if this is an iMazing CSV format
           const isIMazingFormat = headers.includes('Chat Session') && 
-                                 headers.includes('Message Date') && 
-                                 headers.includes('Type') && 
-                                 headers.includes('Sender ID');
+                               headers.includes('Message Date') && 
+                               headers.includes('Type') && 
+                               headers.includes('Sender ID');
           
           if (isIMazingFormat) {
             setFileFormat('imazing');
@@ -100,7 +106,7 @@ export function FileImport() {
             data = lines.slice(1).map(line => {
               if (!line.trim()) return null; // Skip empty lines
               
-              const values = line.split(',');
+              const values = line.split(separator);
               const obj: Record<string, string> = {};
               
               headers.forEach((header, i) => {
@@ -200,7 +206,8 @@ export function FileImport() {
       const response = await supabase.functions.invoke('process-communications-import', {
         body: {
           communications: parsedData,
-          sync_type: 'import'
+          sync_type: 'import',
+          user_id: session.user.id
         },
         headers: {
           Authorization: `Bearer ${session.access_token}`
@@ -210,6 +217,7 @@ export function FileImport() {
       setUploadProgress(90);
       
       if (response.error) {
+        console.error("Error response from edge function:", response.error);
         throw new Error(response.error.message || "Failed to process data");
       }
       
@@ -326,12 +334,12 @@ export function FileImport() {
                 <h4 className="text-sm font-medium mb-2">Invalid Records</h4>
                 <div className="max-h-40 overflow-y-auto border rounded p-2">
                   <ul className="list-disc list-inside text-xs">
-                    {result.invalidRecords.slice(0, 10).map((item, index) => (
+                    {result.invalidRecords?.slice(0, 10).map((item, index) => (
                       <li key={index} className="text-muted-foreground">
                         {item.reason}: {JSON.stringify(item.record)}
                       </li>
                     ))}
-                    {result.invalidRecords.length > 10 && (
+                    {result.invalidRecords && result.invalidRecords.length > 10 && (
                       <li className="text-muted-foreground">
                         ... and {result.invalidRecords.length - 10} more
                       </li>

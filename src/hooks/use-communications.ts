@@ -194,23 +194,26 @@ export function useCommunications() {
         return false;
       }
 
-      // Create a sync log entry
-      const { error } = await supabase
-        .from('communication_sync_logs')
-        .insert({
+      // Create a sync log entry directly using the edge function
+      const { error, data } = await supabase.functions.invoke('process-imazing-sync', {
+        body: {
+          communications: [], // Empty communications for a manual sync request
           sync_type: 'manual',
-          status: 'in_progress',
           user_id: user.id
-        });
-        
+        }
+      });
+      
       if (error) {
-        throw error;
+        throw new Error(error.message || 'Failed to initiate sync');
       }
       
       toast({
         title: 'Sync initiated',
         description: 'Manual sync has been initiated.',
       });
+      
+      // Invalidate queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ['communication_sync_logs'] });
       
       // Simulate a completed sync after 3 seconds
       setTimeout(async () => {

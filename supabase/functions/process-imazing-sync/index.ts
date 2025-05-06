@@ -8,6 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.29.0";
 // Allowed phone types and directions
 const ALLOWED_TYPES = ["call", "text"];
 const ALLOWED_DIRECTIONS = ["incoming", "outgoing", "missed"];
+// Allowed sync types
+const ALLOWED_SYNC_TYPES = ["manual", "auto", "scheduled", "import"];
 
 interface Communication {
   type: string;
@@ -94,12 +96,21 @@ serve(async (req) => {
   
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   
+  // Validate sync type
+  const syncType = payload.sync_type || 'manual';
+  if (!ALLOWED_SYNC_TYPES.includes(syncType)) {
+    return new Response(
+      JSON.stringify({ error: `Invalid sync type: ${syncType}. Allowed types: ${ALLOWED_SYNC_TYPES.join(', ')}` }),
+      { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+    );
+  }
+  
   // Create a sync log entry
   const { data: syncLog, error: syncLogError } = await supabase
     .from('communication_sync_logs')
     .insert({
       user_id: payload.user_id,
-      sync_type: payload.sync_type || 'manual',
+      sync_type: syncType,
       status: 'in_progress'
     })
     .select()
@@ -108,7 +119,7 @@ serve(async (req) => {
   if (syncLogError) {
     console.error('Error creating sync log:', syncLogError);
     return new Response(
-      JSON.stringify({ error: 'Failed to create sync log' }),
+      JSON.stringify({ error: 'Failed to create sync log', details: syncLogError.message }),
       { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
     );
   }
