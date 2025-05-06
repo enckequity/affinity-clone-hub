@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -14,9 +13,11 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   User, Mail, CreditCard, Bell, CalendarClock, MessageSquare, 
   PlusCircle, FileText, Inbox, LogOut, Database, Users, Plus, 
-  CreditCard as CreditCardIcon, Calendar, Bookmark, Package
+  CreditCard as CreditCardIcon, Calendar, Bookmark, Package, Phone
 } from "lucide-react";
 import { InviteTeamMember } from '@/components/settings/InviteTeamMember';
+import { CommunicationsSettings } from '@/components/settings/CommunicationsSettings';
+import { ContactMappings } from '@/components/settings/ContactMappings';
 
 const Settings = () => {
   const [isInviting, setIsInviting] = useState(false);
@@ -62,6 +63,7 @@ const Settings = () => {
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="account">Account</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
+          <TabsTrigger value="communications">Communications</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
@@ -272,6 +274,11 @@ const Settings = () => {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+        
+        <TabsContent value="communications" className="space-y-8">
+          <CommunicationsSettings />
+          <ContactMappings />
         </TabsContent>
         
         <TabsContent value="billing" className="space-y-4">

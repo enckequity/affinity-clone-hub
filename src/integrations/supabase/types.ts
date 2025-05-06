@@ -79,6 +79,104 @@ export type Database = {
           },
         ]
       }
+      communication_sync_logs: {
+        Row: {
+          created_at: string | null
+          end_time: string | null
+          error_message: string | null
+          id: string
+          records_synced: number | null
+          start_time: string
+          status: string
+          sync_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          end_time?: string | null
+          error_message?: string | null
+          id?: string
+          records_synced?: number | null
+          start_time?: string
+          status?: string
+          sync_type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          end_time?: string | null
+          error_message?: string | null
+          id?: string
+          records_synced?: number | null
+          start_time?: string
+          status?: string
+          sync_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      communications: {
+        Row: {
+          contact_id: string | null
+          contact_name: string | null
+          contact_phone: string
+          content: string | null
+          created_at: string | null
+          direction: string
+          duration: number | null
+          id: string
+          important: boolean | null
+          read: boolean | null
+          synced_at: string | null
+          timestamp: string
+          type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          contact_id?: string | null
+          contact_name?: string | null
+          contact_phone: string
+          content?: string | null
+          created_at?: string | null
+          direction: string
+          duration?: number | null
+          id?: string
+          important?: boolean | null
+          read?: boolean | null
+          synced_at?: string | null
+          timestamp: string
+          type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          contact_id?: string | null
+          contact_name?: string | null
+          contact_phone?: string
+          content?: string | null
+          created_at?: string | null
+          direction?: string
+          duration?: number | null
+          id?: string
+          important?: boolean | null
+          read?: boolean | null
+          synced_at?: string | null
+          timestamp?: string
+          type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "communications_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           created_at: string
@@ -370,6 +468,44 @@ export type Database = {
             columns: ["voice_recording_id"]
             isOneToOne: false
             referencedRelation: "voice_recordings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      phone_contact_mappings: {
+        Row: {
+          contact_id: string | null
+          contact_name: string | null
+          created_at: string | null
+          id: string
+          phone_number: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          contact_id?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          id?: string
+          phone_number: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          contact_id?: string | null
+          contact_name?: string | null
+          created_at?: string | null
+          id?: string
+          phone_number?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "phone_contact_mappings_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
         ]
