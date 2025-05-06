@@ -3,9 +3,11 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function useCommunications() {
   const { toast } = useToast();
+  const { user } = useAuth(); // Get the current user
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterByType, setFilterByType] = useState<string | null>(null);
@@ -182,13 +184,24 @@ export function useCommunications() {
   // Function to initiate a manual sync (dummy function for now - will be replaced with real implementation in the desktop app)
   const initiateManualSync = async () => {
     try {
+      // Make sure we have a user before proceeding
+      if (!user || !user.id) {
+        toast({
+          title: 'Authentication required',
+          description: 'You must be logged in to initiate a sync',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
       // In the real implementation, this would trigger the desktop app to start syncing
-      // For now, we'll just create a sync log entry
+      // For now, we'll just create a sync log entry with the required user_id
       const { error } = await supabase
         .from('communication_sync_logs')
         .insert({
           sync_type: 'manual',
-          status: 'in_progress'
+          status: 'in_progress',
+          user_id: user.id // Add the user_id field here
         });
         
       if (error) {
@@ -209,7 +222,8 @@ export function useCommunications() {
             end_time: new Date().toISOString(),
             records_synced: Math.floor(Math.random() * 10)
           })
-          .eq('status', 'in_progress');
+          .eq('status', 'in_progress')
+          .eq('user_id', user.id); // Add this condition to ensure we update the correct record
           
         queryClient.invalidateQueries({ queryKey: ['communication_sync_logs'] });
         
