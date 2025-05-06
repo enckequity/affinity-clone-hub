@@ -431,6 +431,71 @@ export type Database = {
           },
         ]
       }
+      desktop_app_instances: {
+        Row: {
+          app_version: string
+          created_at: string
+          device_name: string | null
+          id: string
+          last_sync: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          app_version: string
+          created_at?: string
+          device_name?: string | null
+          id?: string
+          last_sync?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          app_version?: string
+          created_at?: string
+          device_name?: string | null
+          id?: string
+          last_sync?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      desktop_app_keys: {
+        Row: {
+          api_key: string
+          app_instance_id: string
+          created_at: string
+          id: string
+          revoked_at: string | null
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          app_instance_id: string
+          created_at?: string
+          id?: string
+          revoked_at?: string | null
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          app_instance_id?: string
+          created_at?: string
+          id?: string
+          revoked_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "desktop_app_keys_app_instance_id_fkey"
+            columns: ["app_instance_id"]
+            isOneToOne: false
+            referencedRelation: "desktop_app_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notes: {
         Row: {
           content: string

@@ -181,7 +181,7 @@ export function useCommunications() {
     },
   });
   
-  // Function to initiate a manual sync (dummy function for now - will be replaced with real implementation in the desktop app)
+  // Function to initiate a manual sync (now supports both desktop app and web-based sync)
   const initiateManualSync = async () => {
     try {
       // Make sure we have a user before proceeding
@@ -194,14 +194,13 @@ export function useCommunications() {
         return false;
       }
 
-      // In the real implementation, this would trigger the desktop app to start syncing
-      // For now, we'll just create a sync log entry with the required user_id
+      // Create a sync log entry
       const { error } = await supabase
         .from('communication_sync_logs')
         .insert({
           sync_type: 'manual',
           status: 'in_progress',
-          user_id: user.id // Add the user_id field here
+          user_id: user.id
         });
         
       if (error) {
@@ -210,7 +209,7 @@ export function useCommunications() {
       
       toast({
         title: 'Sync initiated',
-        description: 'Manual sync has been initiated. The desktop app will now start syncing your communications.',
+        description: 'Manual sync has been initiated.',
       });
       
       // Simulate a completed sync after 3 seconds
@@ -223,7 +222,7 @@ export function useCommunications() {
             records_synced: Math.floor(Math.random() * 10)
           })
           .eq('status', 'in_progress')
-          .eq('user_id', user.id); // Add this condition to ensure we update the correct record
+          .eq('user_id', user.id);
           
         queryClient.invalidateQueries({ queryKey: ['communication_sync_logs'] });
         

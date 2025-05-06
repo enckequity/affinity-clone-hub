@@ -36,3 +36,4 @@ enabled = true
 [functions.parse-notes]
 [functions.process-imazing-sync]
 [functions.desktop-auth]
+[functions.process-communications-import]
