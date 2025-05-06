@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate, Outlet } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Search, Menu, MessageSquare } from "lucide-react";
+import { Search, Menu, MessageSquare, Mic } from "lucide-react";
 import { AppNav } from './AppNav';
 import { UserMenu } from './UserMenu';
 import { SearchInput } from './SearchInput';
@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { NaturalLanguageSearch } from '../ai/NaturalLanguageSearch';
+import { VoiceNotesDialog } from '../activities/VoiceNotesDialog';
 
 export function AppLayout() {
   const navigate = useNavigate();
@@ -24,6 +25,7 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const { user } = useAuth();
   const [isAISearchOpen, setIsAISearchOpen] = useState(false);
+  const [isVoiceNotesOpen, setIsVoiceNotesOpen] = useState(false);
   
   return (
     <SidebarProvider defaultOpen={!isMobile}>
@@ -45,6 +47,16 @@ export function AppLayout() {
             </div>
             
             <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2"
+                onClick={() => setIsVoiceNotesOpen(true)}
+              >
+                <Mic className="h-4 w-4" />
+                <span className="hidden md:inline">Voice Notes</span>
+              </Button>
+              
               <Dialog open={isAISearchOpen} onOpenChange={setIsAISearchOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2">
@@ -70,6 +82,11 @@ export function AppLayout() {
           </main>
         </div>
       </div>
+      
+      <VoiceNotesDialog 
+        open={isVoiceNotesOpen} 
+        onOpenChange={setIsVoiceNotesOpen}
+      />
     </SidebarProvider>
   );
 }

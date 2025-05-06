@@ -333,6 +333,47 @@ export type Database = {
           },
         ]
       }
+      notes: {
+        Row: {
+          content: string
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          updated_at: string
+          user_id: string
+          voice_recording_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+          voice_recording_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+          voice_recording_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notes_voice_recording_id_fkey"
+            columns: ["voice_recording_id"]
+            isOneToOne: false
+            referencedRelation: "voice_recordings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -381,6 +422,36 @@ export type Database = {
           created_by?: string
           id?: string
           name?: string
+        }
+        Relationships: []
+      }
+      voice_recordings: {
+        Row: {
+          audio_url: string | null
+          created_at: string
+          duration: number | null
+          id: string
+          status: string
+          transcript: string | null
+          user_id: string
+        }
+        Insert: {
+          audio_url?: string | null
+          created_at?: string
+          duration?: number | null
+          id?: string
+          status?: string
+          transcript?: string | null
+          user_id: string
+        }
+        Update: {
+          audio_url?: string | null
+          created_at?: string
+          duration?: number | null
+          id?: string
+          status?: string
+          transcript?: string | null
+          user_id?: string
         }
         Relationships: []
       }
