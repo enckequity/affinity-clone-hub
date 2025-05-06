@@ -15,6 +15,7 @@ import { AudioRecorder } from "../ui/audio-recorder";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Badge } from "../ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EntityNote {
   entityId: string;
@@ -39,6 +40,7 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
   const [companies, setCompanies] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
   const { toast } = useToast();
+  const { user } = useAuth();
   
   // Fetch companies and contacts when dialog opens
   useEffect(() => {
@@ -93,11 +95,16 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
     setStep('processing');
     
     try {
+      if (!user) {
+        throw new Error("You must be logged in to record voice notes");
+      }
+
       // First, save the recording
       const { data: recordingData, error: recordingError } = await supabase
         .from('voice_recordings')
         .insert({
-          duration: duration
+          duration: duration,
+          user_id: user.id
         })
         .select()
         .single();
@@ -171,6 +178,10 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
     setStep('saving');
     
     try {
+      if (!user) {
+        throw new Error("You must be logged in to save notes");
+      }
+
       const notesToSave = parsedNotes.filter(note => note.content.trim() !== '');
       
       if (notesToSave.length === 0) {
@@ -182,7 +193,8 @@ export function VoiceNotesDialog({ open, onOpenChange }: VoiceNotesDialogProps) 
         content: note.content,
         entity_id: note.entityId,
         entity_type: note.entityType,
-        voice_recording_id: voiceRecordingId
+        voice_recording_id: voiceRecordingId,
+        user_id: user.id
       }));
       
       // Insert notes into database

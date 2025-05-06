@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AudioRecorder } from "../ui/audio-recorder";
 import { Loader2, Mic } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AddNoteDialogProps {
   open: boolean;
@@ -34,6 +35,7 @@ export function AddNoteDialog({
   const [activeTab, setActiveTab] = useState<string>("text");
   const [isProcessingAudio, setIsProcessingAudio] = useState<boolean>(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +44,15 @@ export function AddNoteDialog({
       toast({
         title: "Note is empty",
         description: "Please enter some content for your note.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!user) {
+      toast({
+        title: "Authentication error",
+        description: "You need to be logged in to add notes.",
         variant: "destructive",
       });
       return;
@@ -55,6 +66,7 @@ export function AddNoteDialog({
           content,
           entity_id: entityId,
           entity_type: entityType,
+          user_id: user.id
         });
       
       if (error) throw error;
@@ -84,6 +96,10 @@ export function AddNoteDialog({
     setIsProcessingAudio(true);
     
     try {
+      if (!user) {
+        throw new Error("You must be logged in to record voice notes");
+      }
+
       // Process the audio with voice-to-text function
       const { data, error } = await supabase.functions
         .invoke('voice-to-text', {
