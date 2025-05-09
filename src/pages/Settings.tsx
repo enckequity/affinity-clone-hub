@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,15 +14,62 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   User, Mail, CreditCard, Bell, CalendarClock, MessageSquare, 
   PlusCircle, FileText, Inbox, LogOut, Database, Users, Plus, 
-  CreditCard as CreditCardIcon, Calendar, Bookmark, Package, Phone
+  CreditCard as CreditCardIcon, Calendar, Bookmark, Package, Phone,
+  CheckCircle, Loader2, RefreshCw
 } from "lucide-react";
 import { InviteTeamMember } from '@/components/settings/InviteTeamMember';
 import { CommunicationsSettings } from '@/components/settings/CommunicationsSettings';
 import { ContactMappings } from '@/components/settings/ContactMappings';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSearchParams } from 'react-router-dom';
+import { useSubscription } from '@/hooks/use-subscription';
+import { format } from 'date-fns';
+
+// Define the price IDs for each plan
+const PLAN_PRICE_IDS = {
+  basic: 'price_1OhxgBKY2pLqehAq39vM0qvs', // Replace with your actual Stripe price IDs
+  professional: 'price_1OhxgeKY2pLqehAqIlT9GQX6',
+  enterprise: 'price_1OhxgBKY2pLqehAq39vM0qvs'
+};
 
 const Settings = () => {
   const [isInviting, setIsInviting] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("profile");
   const { toast } = useToast();
+  const { user, profile } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { status, checkSubscription, createCheckout, openCustomerPortal } = useSubscription();
+  
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    // Check for success or canceled payment status
+    const paymentStatus = searchParams.get('status');
+    if (paymentStatus === 'success') {
+      toast({
+        title: 'Payment Successful',
+        description: 'Your subscription has been activated successfully.',
+      });
+      // Remove the status param
+      searchParams.delete('status');
+      setSearchParams(searchParams);
+      // Refresh subscription status
+      checkSubscription();
+    } else if (paymentStatus === 'canceled') {
+      toast({
+        title: 'Payment Canceled',
+        description: 'Your subscription payment was canceled.',
+        variant: 'destructive',
+      });
+      searchParams.delete('status');
+      setSearchParams(searchParams);
+    }
+  }, [searchParams, toast, checkSubscription, setSearchParams]);
   
   const handleSaveProfile = () => {
     toast({
@@ -50,6 +98,33 @@ const Settings = () => {
       description: `You'll be redirected to authenticate with ${service}.`
     });
   };
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    searchParams.set('tab', value);
+    setSearchParams(searchParams);
+  };
+
+  const handleCheckoutProfessional = () => {
+    createCheckout(PLAN_PRICE_IDS.professional, 'Professional');
+  };
+
+  const handleCheckoutTeam = () => {
+    createCheckout(PLAN_PRICE_IDS.enterprise, 'Team');
+  };
+
+  const handleCheckoutEnterprise = () => {
+    createCheckout(PLAN_PRICE_IDS.enterprise, 'Enterprise');
+  };
+  
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
+    try {
+      return format(new Date(dateString), 'MMM d, yyyy');
+    } catch (error) {
+      return 'Invalid date';
+    }
+  };
   
   return (
     <div className="container mx-auto py-6 space-y-8">
@@ -58,7 +133,7 @@ const Settings = () => {
         <p className="text-muted-foreground">Manage your account settings and preferences.</p>
       </div>
       
-      <Tabs defaultValue="profile" className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="account">Account</TabsTrigger>
@@ -81,7 +156,7 @@ const Settings = () => {
               <div className="flex items-center gap-4">
                 <Avatar className="h-16 w-16">
                   <AvatarImage src="/public/placeholder.svg" />
-                  <AvatarFallback>JD</AvatarFallback>
+                  <AvatarFallback>{profile?.first_name?.charAt(0) || ''}{profile?.last_name?.charAt(0) || ''}</AvatarFallback>
                 </Avatar>
                 <div className="space-y-2">
                   <Button variant="outline" size="sm">Change Avatar</Button>
@@ -92,11 +167,11 @@ const Settings = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" placeholder="Enter your first name" defaultValue="John" />
+                  <Input id="firstName" placeholder="Enter your first name" defaultValue={profile?.first_name || ''} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" placeholder="Enter your last name" defaultValue="Doe" />
+                  <Input id="lastName" placeholder="Enter your last name" defaultValue={profile?.last_name || ''} />
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="jobTitle">Job Title</Label>
@@ -124,7 +199,7 @@ const Settings = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" placeholder="Enter your email" type="email" defaultValue="john.doe@example.com" />
+                  <Input id="email" placeholder="Enter your email" type="email" defaultValue={user?.email || ''} disabled />
                 </div>
                 
                 <div className="space-y-2">
@@ -283,113 +358,207 @@ const Settings = () => {
         
         <TabsContent value="billing" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Subscription</CardTitle>
-              <CardDescription>
-                Manage your subscription and billing information
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="border-2">
-                  <CardHeader className="pb-2">
-                    <Badge className="self-start mb-2">Current Plan</Badge>
-                    <CardTitle>Professional</CardTitle>
-                    <CardDescription>
-                      For growing teams
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold mb-1">$29<span className="text-sm text-muted-foreground font-normal"> / user / month</span></div>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Billed annually ($348 / year)
-                    </p>
-                    <ul className="space-y-2 text-sm">
-                      <li className="flex items-center">
-                        <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
-                        Unlimited contacts
-                      </li>
-                      <li className="flex items-center">
-                        <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
-                        Advanced reporting
-                      </li>
-                      <li className="flex items-center">
-                        <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
-                        Email integration
-                      </li>
-                    </ul>
-                  </CardContent>
-                  <CardFooter>
-                    <Button className="w-full" variant="outline">Manage Subscription</Button>
-                  </CardFooter>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle>Team</CardTitle>
-                    <CardDescription>
-                      For established teams
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold mb-1">$49<span className="text-sm text-muted-foreground font-normal"> / user / month</span></div>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Billed annually ($588 / year)
-                    </p>
-                    <ul className="space-y-2 text-sm">
-                      <li className="flex items-center">
-                        <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
-                        All Professional features
-                      </li>
-                      <li className="flex items-center">
-                        <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
-                        Advanced workflows
-                      </li>
-                      <li className="flex items-center">
-                        <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
-                        Advanced permissions
-                      </li>
-                    </ul>
-                  </CardContent>
-                  <CardFooter>
-                    <Button className="w-full">Upgrade</Button>
-                  </CardFooter>
-                </Card>
-                
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle>Enterprise</CardTitle>
-                    <CardDescription>
-                      For large organizations
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold mb-1">$89<span className="text-sm text-muted-foreground font-normal"> / user / month</span></div>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Billed annually ($1,068 / year)
-                    </p>
-                    <ul className="space-y-2 text-sm">
-                      <li className="flex items-center">
-                        <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
-                        All Team features
-                      </li>
-                      <li className="flex items-center">
-                        <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
-                        Advanced security
-                      </li>
-                      <li className="flex items-center">
-                        <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
-                        Dedicated support
-                      </li>
-                    </ul>
-                  </CardContent>
-                  <CardFooter>
-                    <Button className="w-full">Upgrade</Button>
-                  </CardFooter>
-                </Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Subscription</CardTitle>
+                <CardDescription>
+                  Manage your subscription and billing information
+                </CardDescription>
               </div>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex items-center gap-1"
+                  onClick={checkSubscription}
+                  disabled={status.isLoading}
+                >
+                  {status.isLoading ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                  )}
+                  Refresh
+                </Button>
+                {status.subscribed && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={openCustomerPortal}
+                  >
+                    Manage Subscription
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            
+            {status.error && (
+              <CardContent>
+                <div className="bg-destructive/10 text-destructive p-3 rounded-md">
+                  Error checking subscription status: {status.error}
+                </div>
+              </CardContent>
+            )}
+            
+            <CardContent className="space-y-4">
+              {status.isLoading ? (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+                  <p>Checking subscription status...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card className={`border-2 ${status.subscription_tier === 'Basic' ? 'border-primary' : ''}`}>
+                    <CardHeader className="pb-2 relative">
+                      {status.subscription_tier === 'Basic' && (
+                        <Badge className="absolute top-2 right-2">Current Plan</Badge>
+                      )}
+                      <CardTitle>Basic</CardTitle>
+                      <CardDescription>
+                        For individuals
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-3xl font-bold mb-1">$9<span className="text-sm text-muted-foreground font-normal"> / user / month</span></div>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Billed annually ($108 / year)
+                      </p>
+                      <ul className="space-y-2 text-sm">
+                        <li className="flex items-center">
+                          <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
+                          Basic CRM features
+                        </li>
+                        <li className="flex items-center">
+                          <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
+                          100 contacts
+                        </li>
+                        <li className="flex items-center">
+                          <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
+                          Basic reporting
+                        </li>
+                      </ul>
+                    </CardContent>
+                    <CardFooter>
+                      {status.subscription_tier === 'Basic' ? (
+                        <Button className="w-full" variant="outline" onClick={openCustomerPortal}>
+                          Manage Plan
+                        </Button>
+                      ) : (
+                        <Button className="w-full" onClick={() => createCheckout(PLAN_PRICE_IDS.basic, 'Basic')}>
+                          {status.subscribed ? 'Switch to Basic' : 'Subscribe'}
+                        </Button>
+                      )}
+                    </CardFooter>
+                  </Card>
+                  
+                  <Card className={`border-2 ${status.subscription_tier === 'Professional' ? 'border-primary' : ''}`}>
+                    <CardHeader className="pb-2 relative">
+                      {status.subscription_tier === 'Professional' && (
+                        <Badge className="absolute top-2 right-2">Current Plan</Badge>
+                      )}
+                      <CardTitle>Professional</CardTitle>
+                      <CardDescription>
+                        For growing teams
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-3xl font-bold mb-1">$29<span className="text-sm text-muted-foreground font-normal"> / user / month</span></div>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Billed annually ($348 / year)
+                      </p>
+                      <ul className="space-y-2 text-sm">
+                        <li className="flex items-center">
+                          <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
+                          Unlimited contacts
+                        </li>
+                        <li className="flex items-center">
+                          <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
+                          Advanced reporting
+                        </li>
+                        <li className="flex items-center">
+                          <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
+                          Email integration
+                        </li>
+                      </ul>
+                    </CardContent>
+                    <CardFooter>
+                      {status.subscription_tier === 'Professional' ? (
+                        <Button className="w-full" variant="outline" onClick={openCustomerPortal}>
+                          Manage Plan
+                        </Button>
+                      ) : (
+                        <Button className="w-full" onClick={handleCheckoutProfessional}>
+                          {status.subscribed ? 'Switch to Professional' : 'Subscribe'}
+                        </Button>
+                      )}
+                    </CardFooter>
+                  </Card>
+                  
+                  <Card className={`border-2 ${status.subscription_tier === 'Enterprise' ? 'border-primary' : ''}`}>
+                    <CardHeader className="pb-2 relative">
+                      {status.subscription_tier === 'Enterprise' && (
+                        <Badge className="absolute top-2 right-2">Current Plan</Badge>
+                      )}
+                      <CardTitle>Enterprise</CardTitle>
+                      <CardDescription>
+                        For large organizations
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-3xl font-bold mb-1">$89<span className="text-sm text-muted-foreground font-normal"> / user / month</span></div>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Billed annually ($1,068 / year)
+                      </p>
+                      <ul className="space-y-2 text-sm">
+                        <li className="flex items-center">
+                          <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
+                          All Professional features
+                        </li>
+                        <li className="flex items-center">
+                          <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
+                          Advanced security
+                        </li>
+                        <li className="flex items-center">
+                          <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
+                          Dedicated support
+                        </li>
+                      </ul>
+                    </CardContent>
+                    <CardFooter>
+                      {status.subscription_tier === 'Enterprise' ? (
+                        <Button className="w-full" variant="outline" onClick={openCustomerPortal}>
+                          Manage Plan
+                        </Button>
+                      ) : (
+                        <Button className="w-full" onClick={handleCheckoutEnterprise}>
+                          {status.subscribed ? 'Switch to Enterprise' : 'Subscribe'}
+                        </Button>
+                      )}
+                    </CardFooter>
+                  </Card>
+                </div>
+              )}
               
-              <Separator />
+              {status.subscribed && (
+                <>
+                  <div className="mt-4 p-4 bg-primary/10 rounded-md">
+                    <div className="flex items-start space-x-3">
+                      <CheckCircle className="h-5 w-5 text-primary mt-0.5" />
+                      <div>
+                        <h3 className="font-medium">Active Subscription</h3>
+                        <p className="text-sm text-muted-foreground">
+                          You are currently subscribed to the {status.subscription_tier} plan.
+                          {status.subscription_end && (
+                            <> Your subscription renews on {formatDate(status.subscription_end)}.</>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <Separator />
+                </>
+              )}
               
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Payment Information</h3>
@@ -397,22 +566,11 @@ const Settings = () => {
                   <div className="flex items-center gap-3">
                     <CreditCardIcon className="h-10 w-10 p-2 bg-muted rounded-md" />
                     <div>
-                      <p className="font-medium">Visa ending in 4242</p>
-                      <p className="text-sm text-muted-foreground">Expires 12/2024</p>
+                      <p className="font-medium">Add payment method</p>
+                      <p className="text-sm text-muted-foreground">Add a credit card or other payment method</p>
                     </div>
                   </div>
-                  <Button variant="outline">Update</Button>
-                </div>
-                
-                <div className="flex justify-between items-center p-4 border rounded-md">
-                  <div className="flex items-center gap-3">
-                    <CreditCardIcon className="h-10 w-10 p-2 bg-muted rounded-md" />
-                    <div>
-                      <p className="font-medium">Add new payment method</p>
-                      <p className="text-sm text-muted-foreground">Use a different card or payment method</p>
-                    </div>
-                  </div>
-                  <Button variant="outline">Add</Button>
+                  <Button variant="outline" onClick={openCustomerPortal}>Manage Payment</Button>
                 </div>
               </div>
               
@@ -430,26 +588,28 @@ const Settings = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <TableRow>
-                      <TableCell>May 1, 2023</TableCell>
-                      <TableCell>Professional Plan (Annual)</TableCell>
-                      <TableCell>$348.00</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="link" size="sm" className="h-auto p-0">
-                          Download
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Apr 1, 2022</TableCell>
-                      <TableCell>Professional Plan (Annual)</TableCell>
-                      <TableCell>$348.00</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="link" size="sm" className="h-auto p-0">
-                          Download
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                    {status.subscribed ? (
+                      <TableRow>
+                        <TableCell>{formatDate(status.subscription_end ? new Date(new Date(status.subscription_end).getTime() - (365 * 24 * 60 * 60 * 1000)).toISOString() : null)}</TableCell>
+                        <TableCell>{status.subscription_tier} Plan (Annual)</TableCell>
+                        <TableCell>
+                          {status.subscription_tier === 'Basic' && '$108.00'}
+                          {status.subscription_tier === 'Professional' && '$348.00'}
+                          {status.subscription_tier === 'Enterprise' && '$1,068.00'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="link" size="sm" className="h-auto p-0" onClick={openCustomerPortal}>
+                            View
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
+                          No billing history available
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>

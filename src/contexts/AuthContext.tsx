@@ -5,16 +5,24 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
+interface SubscriptionInfo {
+  subscribed: boolean;
+  subscription_tier: string | null;
+  subscription_end: string | null;
+}
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   profile: any | null;
+  subscription: SubscriptionInfo | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (data: any) => Promise<void>;
+  checkSubscription: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,9 +31,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Function to check subscription status
+  const checkSubscription = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('check-subscription');
+      
+      if (error) {
+        console.error('Error checking subscription:', error);
+        return;
+      }
+      
+      setSubscription({
+        subscribed: data.subscribed || false,
+        subscription_tier: data.subscription_tier || null,
+        subscription_end: data.subscription_end || null,
+      });
+    } catch (err) {
+      console.error('Subscription check error:', err);
+    }
+  };
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -39,10 +70,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (newSession?.user) {
             setTimeout(() => {
               fetchUserProfile(newSession.user.id);
+              checkSubscription();
             }, 0);
           }
         } else if (event === 'SIGNED_OUT') {
           setProfile(null);
+          setSubscription(null);
         }
       }
     );
@@ -54,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (currentSession?.user) {
         fetchUserProfile(currentSession.user.id);
+        checkSubscription();
       }
       
       setIsLoading(false);
@@ -252,12 +286,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     user,
     profile,
+    subscription,
     isLoading,
     signIn,
     signUp,
     signInWithGoogle,
     signOut,
     updateProfile,
+    checkSubscription,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
