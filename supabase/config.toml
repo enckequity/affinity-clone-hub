@@ -24,7 +24,3 @@ enabled = true
 
 [storage]
 enabled = true
-
-[edge_functions]
-[edge_functions.process-scheduled-import]
-verify_jwt = true

@@ -1,8 +1,10 @@
+
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { UserSettings } from '@/types/fileImport';
 
 export function useCommunications() {
   const { toast } = useToast();
@@ -180,7 +182,7 @@ export function useCommunications() {
     },
   });
   
-  // Function to initiate a manual sync (now supports both desktop app and web-based sync)
+  // Function to initiate a manual sync
   const initiateManualSync = async () => {
     try {
       // Make sure we have a user before proceeding
@@ -245,57 +247,13 @@ export function useCommunications() {
     }
   };
   
-  // Function to initiate a scheduled import manually
-  const runScheduledImport = async () => {
-    try {
-      // Make sure we have a user before proceeding
-      if (!user || !user.id) {
-        toast({
-          title: 'Authentication required',
-          description: 'You must be logged in to initiate a scheduled import',
-          variant: 'destructive',
-        });
-        return false;
-      }
-
-      // Call the scheduled import edge function
-      const { error, data } = await supabase.functions.invoke('process-scheduled-import', {
-        body: {
-          user_id: user.id,
-          run_now: true
-        }
-      });
-      
-      if (error) {
-        throw new Error(error.message || 'Failed to initiate scheduled import');
-      }
-      
-      toast({
-        title: 'Scheduled import initiated',
-        description: 'The scheduled import process has been started.',
-      });
-      
-      // Invalidate queries to refresh the data
-      queryClient.invalidateQueries({ queryKey: ['communication_sync_logs'] });
-      
-      return true;
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to initiate scheduled import',
-        variant: 'destructive',
-      });
-      return false;
-    }
-  };
-  
   // Function to fetch user settings
   const fetchUserSettings = async () => {
     if (!user) return null;
     
     const { data, error } = await supabase
       .from('user_settings')
-      .select('scheduled_import_settings')
+      .select('*')
       .eq('user_id', user.id)
       .single();
       
@@ -304,7 +262,7 @@ export function useCommunications() {
       throw error;
     }
     
-    return data || null;
+    return data as UserSettings || null;
   };
   
   // Query for user settings
@@ -316,7 +274,7 @@ export function useCommunications() {
   
   // Mutation to update user settings
   const updateUserSettings = useMutation({
-    mutationFn: async (settings: any) => {
+    mutationFn: async (settings: Partial<UserSettings>) => {
       if (!user) throw new Error('User not authenticated');
       
       const { data, error } = await supabase
@@ -379,7 +337,6 @@ export function useCommunications() {
     
     userSettings: userSettings.data,
     isLoadingUserSettings: userSettings.isLoading,
-    updateUserSettings,
-    runScheduledImport,
+    updateUserSettings
   };
 }

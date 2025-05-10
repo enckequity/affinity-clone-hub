@@ -1,15 +1,26 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { FileUploadForm } from './FileUploadForm';
 import { ImportResultDisplay } from './ImportResultDisplay';
 import { parseFileContent } from '@/utils/fileParsingUtils';
-import { FileUploadState, ImportResult } from '@/types/fileImport';
+import { FileUploadState, ImportResult, UserSettings } from '@/types/fileImport';
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { useAuth } from '@/contexts/AuthContext';
+import { useCommunications } from '@/hooks/use-communications';
+import { format } from 'date-fns';
 
 export function FileImport() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { userSettings, updateUserSettings } = useCommunications();
+  const [importEnabled, setImportEnabled] = useState(false);
+  const [importTime, setImportTime] = useState('00:00');
   const [state, setState] = useState<FileUploadState>({
     file: null,
     isUploading: false,
@@ -20,6 +31,48 @@ export function FileImport() {
     showConfirm: false,
     fileFormat: 'unknown'
   });
+
+  // Initialize state from user settings
+  useEffect(() => {
+    if (userSettings) {
+      setImportEnabled(userSettings.import_enabled || false);
+      
+      // Convert time from database format to input format
+      if (userSettings.daily_import_time) {
+        const timeObj = new Date(userSettings.daily_import_time);
+        const hours = String(timeObj.getUTCHours()).padStart(2, '0');
+        const minutes = String(timeObj.getUTCMinutes()).padStart(2, '0');
+        setImportTime(`${hours}:${minutes}`);
+      }
+    }
+  }, [userSettings]);
+
+  const handleSaveSettings = async () => {
+    if (!user) return;
+    
+    try {
+      // Parse the time from input format to database format
+      const [hours, minutes] = importTime.split(':').map(Number);
+      const timeValue = new Date();
+      timeValue.setUTCHours(hours, minutes, 0, 0);
+      
+      await updateUserSettings.mutateAsync({
+        import_enabled: importEnabled,
+        daily_import_time: timeValue.toISOString()
+      });
+      
+      toast({
+        title: "Settings saved",
+        description: "Your daily import settings have been updated.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -145,31 +198,71 @@ export function FileImport() {
   };
   
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Import Communications</CardTitle>
-        <CardDescription>
-          Upload communication data from your device
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!state.result ? (
-          <FileUploadForm 
-            state={state}
-            onFileChange={handleFileChange}
-            onUpload={handleUpload}
-            onReset={resetForm}
-          />
-        ) : (
-          <ImportResultDisplay
-            result={state.result}
-            onReset={resetForm}
-          />
-        )}
-      </CardContent>
-      <CardFooter>
-        {/* Footer content if needed */}
-      </CardFooter>
-    </Card>
+    <div className="space-y-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Daily Import Settings</CardTitle>
+          <CardDescription>
+            Configure automatic daily import of your communications
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="importEnabled">Enable Daily Import</Label>
+              <p className="text-sm text-muted-foreground">
+                Automatically import your communications once per day
+              </p>
+            </div>
+            <Switch
+              id="importEnabled"
+              checked={importEnabled}
+              onCheckedChange={setImportEnabled}
+            />
+          </div>
+          
+          {importEnabled && (
+            <div className="space-y-2">
+              <Label htmlFor="importTime">Import Time (UTC)</Label>
+              <Input
+                id="importTime"
+                type="time"
+                value={importTime}
+                onChange={(e) => setImportTime(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Set the time when communications will be imported daily (in UTC)
+              </p>
+            </div>
+          )}
+          
+          <Button onClick={handleSaveSettings}>Save Settings</Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Manual Import</CardTitle>
+          <CardDescription>
+            Upload communications data from your device
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!state.result ? (
+            <FileUploadForm 
+              state={state}
+              onFileChange={handleFileChange}
+              onUpload={handleUpload}
+              onReset={resetForm}
+            />
+          ) : (
+            <ImportResultDisplay
+              result={state.result}
+              onReset={resetForm}
+            />
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

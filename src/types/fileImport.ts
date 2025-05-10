@@ -18,21 +18,6 @@ export interface FileUploadState {
   fileFormat: 'standard' | 'imazing' | 'unknown';
 }
 
-export interface ScheduledImportSettings {
-  enabled: boolean;
-  importTime: string;
-  watchFolder: string;
-  fileFormat: 'json' | 'csv';
-  updatedAt: string;
-}
-
-export interface UserSettings {
-  user_id: string;
-  scheduled_import_settings?: ScheduledImportSettings;
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface ImportFile {
   id: string;
   filename: string;
@@ -42,4 +27,14 @@ export interface ImportFile {
   error_message?: string;
   uploaded_at: string;
   processed_at?: string;
+}
+
+export interface UserSettings {
+  id: string;
+  user_id: string;
+  daily_import_time: string | null;
+  import_enabled: boolean;
+  last_import_date: string | null;
+  created_at?: string;
+  updated_at?: string;
 }

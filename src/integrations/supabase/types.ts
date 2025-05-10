@@ -125,6 +125,7 @@ export type Database = {
           direction: string
           duration: number | null
           id: string
+          import_id: string | null
           important: boolean | null
           read: boolean | null
           synced_at: string | null
@@ -142,6 +143,7 @@ export type Database = {
           direction: string
           duration?: number | null
           id?: string
+          import_id?: string | null
           important?: boolean | null
           read?: boolean | null
           synced_at?: string | null
@@ -159,6 +161,7 @@ export type Database = {
           direction?: string
           duration?: number | null
           id?: string
+          import_id?: string | null
           important?: boolean | null
           read?: boolean | null
           synced_at?: string | null
@@ -659,6 +662,36 @@ export type Database = {
           created_by?: string
           id?: string
           name?: string
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          created_at: string | null
+          daily_import_time: string | null
+          id: string
+          import_enabled: boolean | null
+          last_import_date: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          daily_import_time?: string | null
+          id?: string
+          import_enabled?: boolean | null
+          last_import_date?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          daily_import_time?: string | null
+          id?: string
+          import_enabled?: boolean | null
+          last_import_date?: string | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }

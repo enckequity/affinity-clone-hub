@@ -9,7 +9,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.29.0";
 const ALLOWED_TYPES = ["call", "text"];
 const ALLOWED_DIRECTIONS = ["incoming", "outgoing", "missed"];
 // Allowed sync types
-const ALLOWED_SYNC_TYPES = ["manual", "auto", "scheduled", "import"];
+const ALLOWED_SYNC_TYPES = ["manual", "auto", "scheduled", "import", "daily"];
 
 interface Communication {
   type: string;
@@ -136,7 +136,8 @@ serve(async (req) => {
     if (validateCommunication(comm)) {
       validCommunications.push({
         ...comm,
-        user_id: payload.user_id
+        user_id: payload.user_id,
+        import_id: syncLogId  // Add import ID to track which import this came from
       });
     } else {
       invalidCommunications.push(comm);
@@ -147,7 +148,7 @@ serve(async (req) => {
     }
   }
   
-  // Insert valid communications into database
+  // Insert valid communications into database with conflict handling
   let insertedCount = 0;
   if (validCommunications.length > 0) {
     const { data, error } = await supabase
@@ -162,8 +163,12 @@ serve(async (req) => {
           content: comm.content,
           duration: comm.duration,
           timestamp: comm.timestamp,
+          import_id: syncLogId,
         })),
-        { onConflict: 'user_id, contact_phone, timestamp, type' }
+        { 
+          onConflict: 'user_id,contact_phone,timestamp,type',
+          ignoreDuplicates: true // This will skip inserting duplicates
+        }
       );
       
     if (error) {
@@ -186,7 +191,14 @@ serve(async (req) => {
     }
     
     processedCount = validCommunications.length;
-    insertedCount = processedCount - (invalidCommunications.length || 0);
+    
+    // Count actual inserts by checking the response
+    const { count } = await supabase
+      .from('communications')
+      .select('id', { count: 'exact' })
+      .eq('import_id', syncLogId);
+      
+    insertedCount = count || 0;
   }
   
   // Update sync log to completed status
@@ -242,6 +254,16 @@ serve(async (req) => {
         .insert(newMappings);
     }
   }
+  
+  // Update user's last_import_date in user_settings
+  await supabase
+    .from('user_settings')
+    .upsert({
+      user_id: payload.user_id,
+      last_import_date: new Date().toISOString()
+    }, {
+      onConflict: 'user_id'
+    });
   
   // Return success response
   return new Response(
