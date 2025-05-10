@@ -168,8 +168,8 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         }
       }
       
-      // Check if there's already a pending invitation for this email
-      const existingInvites = await checkExistingInvite(values.email, organizationId);
+      // Check if there's already a pending invitation for this email - FIX THE TYPE HERE
+      const existingInvites = await checkExistingInvite(values.email, organizationId) as any[];
       
       if (existingInvites && Array.isArray(existingInvites) && existingInvites.length > 0) {
         toast({
@@ -188,7 +188,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         organizationId,
         user.id,
         values.message || null
-      );
+      ) as { id: string };
       
       if (!invitationData || !invitationData.id) throw new Error('Failed to create invitation');
 
