@@ -127,6 +127,7 @@ export type Database = {
       }
       communications: {
         Row: {
+          chat_session: string | null
           contact_id: string | null
           contact_name: string | null
           contact_phone: string
@@ -139,6 +140,7 @@ export type Database = {
           important: boolean | null
           organization_id: string | null
           read: boolean | null
+          sender_name: string | null
           synced_at: string | null
           timestamp: string
           type: string
@@ -146,6 +148,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          chat_session?: string | null
           contact_id?: string | null
           contact_name?: string | null
           contact_phone: string
@@ -158,6 +161,7 @@ export type Database = {
           important?: boolean | null
           organization_id?: string | null
           read?: boolean | null
+          sender_name?: string | null
           synced_at?: string | null
           timestamp: string
           type: string
@@ -165,6 +169,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          chat_session?: string | null
           contact_id?: string | null
           contact_name?: string | null
           contact_phone?: string
@@ -177,6 +182,7 @@ export type Database = {
           important?: boolean | null
           organization_id?: string | null
           read?: boolean | null
+          sender_name?: string | null
           synced_at?: string | null
           timestamp?: string
           type?: string
