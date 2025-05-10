@@ -10,18 +10,18 @@ import {
   Settings,
   HelpCircle,
   DollarSign,
-  GitFlow,
+  GitBranch, // Replaced GitFlow with GitBranch
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile"; // Fixed hook name
 
 interface AppNavProps {
   isSidebarCollapsed: boolean;
 }
 
 export const AppNav = ({ isSidebarCollapsed }: AppNavProps) => {
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
   
   const navItems = [
     {
@@ -57,7 +57,7 @@ export const AppNav = ({ isSidebarCollapsed }: AppNavProps) => {
     {
       title: "Workflows",
       href: "/workflows",
-      icon: GitFlow,
+      icon: GitBranch, // Changed from GitFlow to GitBranch
     },
     {
       title: "Settings",
