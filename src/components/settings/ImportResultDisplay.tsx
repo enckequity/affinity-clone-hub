@@ -2,8 +2,9 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, AlertTriangle } from "lucide-react";
+import { CheckCircle, AlertTriangle, Phone } from "lucide-react";
 import { ImportResult } from "@/types/fileImport";
+import { Link } from 'react-router-dom';
 
 interface ImportResultDisplayProps {
   result: ImportResult;
@@ -20,6 +21,16 @@ export function ImportResultDisplay({ result, onReset }: ImportResultDisplayProp
           <div className="pt-2 space-y-1">
             <p>Total records processed: <span className="font-medium">{result.processed}</span></p>
             <p>Records successfully imported: <span className="font-medium text-green-600">{result.inserted}</span></p>
+            {(result.incoming !== undefined || result.outgoing !== undefined) && (
+              <div className="pl-4 space-y-0.5 text-sm">
+                {result.incoming !== undefined && (
+                  <p>Incoming messages: <span className="font-medium">{result.incoming}</span></p>
+                )}
+                {result.outgoing !== undefined && (
+                  <p>Outgoing messages: <span className="font-medium">{result.outgoing}</span></p>
+                )}
+              </div>
+            )}
             {(result.skipped > 0) && (
               <p>Duplicate records skipped: <span className="font-medium text-amber-600">{result.skipped}</span></p>
             )}
@@ -29,6 +40,23 @@ export function ImportResultDisplay({ result, onReset }: ImportResultDisplayProp
           </div>
         </AlertDescription>
       </Alert>
+      
+      {result.unmatchedPhones && result.unmatchedPhones.length > 0 && (
+        <Alert variant="default" className="bg-blue-50 border-blue-200">
+          <Phone className="h-4 w-4 text-blue-500" />
+          <AlertTitle>Contact Resolution Needed</AlertTitle>
+          <AlertDescription>
+            <p className="mt-1 mb-2">
+              {result.unmatchedPhones.length} phone numbers need to be linked to contacts.
+            </p>
+            <Link to="/import/resolve-contacts">
+              <Button size="sm" className="mt-2">
+                Resolve Contacts
+              </Button>
+            </Link>
+          </AlertDescription>
+        </Alert>
+      )}
       
       {result.invalid > 0 && (
         <Alert variant="default" className="bg-amber-50 border-amber-200">

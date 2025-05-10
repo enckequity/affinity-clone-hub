@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Info, AlertCircle, FileType, Zap } from "lucide-react";
+import { Upload, Info, AlertCircle, FileType, Zap, Inbox } from "lucide-react";
 import { FileUploadState } from "@/types/fileImport";
 import { Switch } from "@/components/ui/switch";
 
@@ -24,7 +24,9 @@ export function FileUploadForm({
   onReset,
   onToggleForceImport 
 }: FileUploadFormProps) {
-  const { file, isUploading, uploadProgress, error, showConfirm, parsedData, fileFormat, forceImport } = state;
+  const { file, isUploading, uploadProgress, error, showConfirm, parsedData, fileFormat, forceImport, processingMode } = state;
+  
+  const isBulkMode = processingMode === 'bulk';
   
   return (
     <div className="space-y-4">
@@ -38,7 +40,9 @@ export function FileUploadForm({
           disabled={isUploading}
         />
         <p className="text-xs text-muted-foreground mt-1">
-          Upload your message history CSV file. We support standard CSV formats and iMessage exports.
+          {isBulkMode 
+            ? "Upload your bulk iMessage export CSV file. We'll process it in chunks."
+            : "Upload your message history CSV file. We support standard CSV formats and iMessage exports."}
         </p>
         
         <div className="flex items-center space-x-2 mt-2">
@@ -69,18 +73,31 @@ export function FileUploadForm({
         </Alert>
       )}
       
-      {showConfirm && parsedData && (
+      {showConfirm && (isBulkMode || parsedData) && (
         <Alert>
           <Info className="h-4 w-4" />
           <AlertTitle>Ready to Import</AlertTitle>
           <AlertDescription className="space-y-2">
-            <p>Found {parsedData.length} message records. Click 'Import Data' to continue.</p>
+            {isBulkMode ? (
+              <p>File ready for bulk import. Click 'Import Data' to process in chunks.</p>
+            ) : (
+              <p>Found {parsedData?.length} message records. Click 'Import Data' to continue.</p>
+            )}
+            
             {fileFormat && (
               <div className="flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
                 <FileType className="h-3 w-3" />
                 <span>Detected format: {fileFormat === 'imazing' ? 'iMessage Export' : fileFormat === 'standard' ? 'Standard CSV' : 'Unknown'}</span>
               </div>
             )}
+            
+            {isBulkMode && (
+              <div className="flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                <Inbox className="h-3 w-3" />
+                <span>Bulk import mode enabled - large files will be processed in chunks.</span>
+              </div>
+            )}
+            
             {forceImport && (
               <div className="flex items-center gap-1 text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">
                 <Zap className="h-3 w-3" />

@@ -21,6 +21,7 @@ import { RegisterForm } from "./components/auth/RegisterForm";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import AuthCallback from "./pages/AuthCallback";
+import ImportContactResolve from "./pages/ImportContactResolve";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +57,7 @@ const App = () => (
               <Route path="/workflows" element={<Workflows />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/help" element={<Help />} />
+              <Route path="/import/resolve-contacts" element={<ImportContactResolve />} />
             </Route>
             
             {/* Redirect to dashboard for the index page */}

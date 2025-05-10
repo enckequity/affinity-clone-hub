@@ -1,61 +1,80 @@
-
 // Follow this setup guide to integrate the Deno runtime into your application:
-// https://deno.land/manual/examples/deploy_node_server
+// https://deno.com/manual/examples/deploy_node_server
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.29.0";
 
-// Allowed phone types and directions
-const ALLOWED_TYPES = ["call", "text"];
+// Allowed directions and sync types
 const ALLOWED_DIRECTIONS = ["incoming", "outgoing", "missed", "unknown"];
-// Allowed sync types
-const ALLOWED_SYNC_TYPES = ["manual", "auto", "scheduled", "import", "daily"];
+const ALLOWED_SYNC_TYPES = ["manual", "auto", "scheduled", "import"];
 
-interface Communication {
-  type: string;
-  direction: string;
-  contact_phone: string;
-  contact_name?: string;
-  content?: string;
-  duration?: number;
-  timestamp: string;
-  chat_session?: string;
-}
-
-// Basic validation function for payload
-function validatePayload(payload: any): boolean {
-  if (!payload) return false;
-  if (!payload.communications || !Array.isArray(payload.communications)) return false;
-  if (!payload.user_id) return false;
-  
-  return true;
-}
-
-// Validate individual communication object
-function validateCommunication(comm: any): boolean {
-  if (!comm.type || !ALLOWED_TYPES.includes(comm.type)) return false;
-  if (!comm.direction || !ALLOWED_DIRECTIONS.includes(comm.direction)) return false;
-  if (!comm.contact_phone && !comm.chat_session) return false; // Allow using chat_session as alternative
-  if (!comm.timestamp) return false;
-  
-  // Call-specific validation
-  if (comm.type === "call" && comm.duration !== undefined) {
-    if (typeof comm.duration !== "number" || comm.duration < 0) return false;
-  }
-  
-  return true;
-}
-
-// Format phone number to a consistent format for matching
-function formatPhoneNumber(phoneNumber: string): string {
-  // Remove all non-numeric characters
-  return phoneNumber.replace(/\D/g, '');
-}
-
+// CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Validates a basic phone number format (doesn't have to be perfect E.164)
+function isValidPhoneNumber(phone: string): boolean {
+  return phone && phone.length >= 7 && /\d/.test(phone);
+}
+
+// Normalize phone number to E.164-like format (remove non-numeric chars except leading +)
+function normalizePhoneNumber(phone: string): string {
+  if (!phone) return '';
+  
+  // Keep the leading + if it exists
+  const hasPlus = phone.startsWith('+');
+  
+  // Remove all non-numeric characters
+  const digits = phone.replace(/\D/g, '');
+  
+  // Add back the + if it was there
+  return hasPlus ? `+${digits}` : digits;
+}
+
+// Extract phone number from chat session string if present
+function extractPhoneNumber(chatSession: string): string | null {
+  if (!chatSession) return null;
+  
+  // Look for patterns that might be phone numbers in the chat session
+  const phonePattern = /(?:\+|(?:\+\d{1,3}))?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/g;
+  const matches = chatSession.match(phonePattern);
+  
+  if (matches && matches.length > 0) {
+    return normalizePhoneNumber(matches[0]);
+  }
+  
+  return null;
+}
+
+interface CommunicationRecord {
+  // Required fields
+  type: 'call' | 'text';
+  direction: 'incoming' | 'outgoing' | 'missed' | 'unknown';
+  contact_phone: string;
+  timestamp: string;
+  
+  // Optional fields
+  contact_name?: string;
+  content?: string;
+  duration?: number;
+  chat_session?: string;
+  sender_name?: string;
+}
+
+interface ImportResponse {
+  status: string;
+  sync_id: string;
+  processed: number;
+  inserted: number;
+  skipped: number;
+  invalid: number;
+  incoming: number;
+  outgoing: number;
+  unmatchedPhones: string[];
+  invalidRecords?: Array<{ record: any; reason: string }>;
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -71,51 +90,56 @@ serve(async (req) => {
     });
   }
   
-  // Parse request body
-  let payload;
   try {
-    payload = await req.json();
-    console.log("Received payload with:", payload.communications?.length, "communication records");
-  } catch (error) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid JSON body' }),
-      { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-    );
-  }
-  
-  // Validate payload
-  if (!validatePayload(payload)) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid payload format' }),
-      { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-    );
-  }
-  
-  // Create a Supabase client
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return new Response(
-      JSON.stringify({ error: 'Server configuration error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-    );
-  }
-  
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
-  
-  // Validate sync type and ensure it's included in ALLOWED_SYNC_TYPES
-  let syncType = payload.sync_type || 'import';
-  if (!ALLOWED_SYNC_TYPES.includes(syncType)) {
-    console.log(`Invalid sync type: ${syncType}. Defaulting to 'import'`);
-    syncType = 'import';
-  }
-  
-  let syncLogId = payload.sync_id;
-  
-  // Create a sync log entry if one doesn't exist
-  if (!syncLogId) {
-    console.log("Creating new sync log with type:", syncType);
+    // Parse request body
+    const payload = await req.json();
+    
+    // Basic validation
+    if (!payload || !Array.isArray(payload.communications) || !payload.user_id) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid payload format' }),
+        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
+    }
+    
+    // Create a Supabase client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Validate sync type
+    const syncType = payload.sync_type || 'manual';
+    if (!ALLOWED_SYNC_TYPES.includes(syncType)) {
+      return new Response(
+        JSON.stringify({ error: `Invalid sync type: ${syncType}. Allowed types: ${ALLOWED_SYNC_TYPES.join(', ')}` }),
+        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
+    }
+    
+    // Get current user information for outgoing messages
+    const { data: userProfile, error: userProfileError } = await supabase
+      .from('profiles')
+      .select('first_name, last_name')
+      .eq('id', payload.user_id)
+      .single();
+    
+    if (userProfileError) {
+      console.error("Error fetching user profile:", userProfileError);
+    }
+    
+    const userFullName = userProfile 
+      ? `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim()
+      : 'Me';
+    
+    // Create a sync log entry
     const { data: syncLog, error: syncLogError } = await supabase
       .from('communication_sync_logs')
       .insert({
@@ -134,158 +158,253 @@ serve(async (req) => {
       );
     }
     
-    syncLogId = syncLog.id;
-    console.log("Created new sync log with ID:", syncLogId);
-  } else {
-    console.log("Using existing sync log with ID:", syncLogId);
-  }
-  
-  // Process and validate communications
-  const validCommunications = [];
-  const invalidCommunications = [];
-  const invalidRecords = [];
-  let processedCount = 0;
-  
-  for (const comm of payload.communications) {
-    // Format phone numbers to a consistent format for matching
-    if (comm.contact_phone) {
-      comm.contact_phone = formatPhoneNumber(comm.contact_phone);
-      
-      // If phone number is empty after formatting, set it to use chat_session
-      if (comm.contact_phone === '' && comm.chat_session) {
-        comm.contact_phone = 'unknown';
-      }
-    }
+    const syncLogId = syncLog.id;
     
-    if (validateCommunication(comm)) {
-      validCommunications.push({
-        ...comm,
-        user_id: payload.user_id,
-        import_id: syncLogId  // Add import ID to track which import this came from
-      });
-    } else {
-      invalidCommunications.push(comm);
-      invalidRecords.push({
-        record: comm,
-        reason: "Failed validation checks"
-      });
-    }
-  }
-  
-  console.log(`Processed ${payload.communications.length} records: ${validCommunications.length} valid, ${invalidCommunications.length} invalid`);
-  
-  // Create a table for import errors if it doesn't exist
-  try {
-    // First check if table exists
-    const { data: tablesCheck } = await supabase
-      .rpc('check_table_exists', { table_name: 'import_errors' });
+    // Process and validate communications
+    const validRecords: CommunicationRecord[] = [];
+    const invalidRecords: Array<{ record: any; reason: string }> = [];
+    const uniqueContactPhones = new Set<string>();
+    let incomingCount = 0;
+    let outgoingCount = 0;
     
-    if (!tablesCheck) {
-      console.log("Creating import_errors table");
-      await supabase.rpc('create_import_errors_table');
-    }
-  } catch (error) {
-    console.error("Error checking or creating import_errors table:", error);
-    // Continue even if table creation fails
-  }
-  
-  // Insert invalid records into import_errors table if available
-  if (invalidRecords.length > 0) {
-    try {
-      const { error: insertErrorsError } = await supabase
-        .from('import_errors')
-        .insert(invalidRecords.map(item => ({
-          user_id: payload.user_id,
-          import_id: syncLogId,
-          record_data: item.record,
-          reason: item.reason,
-          created_at: new Date().toISOString()
-        })));
-        
-      if (insertErrorsError) {
-        console.error("Failed to insert into import_errors table:", insertErrorsError);
-      } else {
-        console.log(`Saved ${invalidRecords.length} error records to import_errors table`);
-      }
-    } catch (error) {
-      console.error("Error inserting into import_errors table:", error);
-      // Continue processing even if error logging fails
-    }
-  }
-  
-  // Insert valid communications into database with conflict handling
-  let insertedCount = 0;
-  let skipCount = 0;
-  if (validCommunications.length > 0) {
-    // Modified: Use batch inserts with better error handling
-    const BATCH_SIZE = 100;
-    let successfulInserts = 0;
-    let failedInserts = 0;
-    
-    // Process in batches to prevent timeout and improve error handling
-    for (let i = 0; i < validCommunications.length; i += BATCH_SIZE) {
-      const batch = validCommunications.slice(i, i + BATCH_SIZE);
-      
+    for (const comm of payload.communications) {
       try {
-        // Don't use onConflict here - we'll handle checking for duplicates in better ways
-        const { data, error, count } = await supabase
-          .from('communications')
-          .insert(batch.map(comm => ({
-            user_id: comm.user_id,
-            type: comm.type,
-            direction: comm.direction,
-            contact_phone: comm.contact_phone,
-            contact_name: comm.contact_name,
-            content: comm.content,
-            duration: comm.duration,
-            timestamp: comm.timestamp,
-            import_id: syncLogId,
-          })))
-          .select();
+        // Skip empty rows
+        if (!comm || Object.keys(comm).length === 0) {
+          continue;
+        }
         
-        if (error) {
-          // Check if the error is due to unique constraint violation
-          if (error.code === '23505') {
-            console.log(`Batch ${i} had duplicate entries that were skipped`);
-            skipCount += batch.length; // Approximate for now
-          } else {
-            console.error(`Error inserting batch ${i}:`, error);
-            failedInserts += batch.length;
-            
-            // Log the failed batch to import_errors table
+        // For iMazing format, do special processing
+        if (payload.fileFormat === 'imazing') {
+          const record: CommunicationRecord = {
+            type: 'text', // iMazing exports are text messages
+            direction: 'unknown',
+            contact_phone: 'unknown',
+            timestamp: new Date().toISOString(), // Default value, will be overwritten
+          };
+          
+          // Extract and normalize values
+          const chatSession = comm['chat session'] || comm['Chat Session'] || '';
+          record.chat_session = chatSession;
+          
+          // Message Date - convert to ISO
+          const messageDate = comm['message date'] || comm['Message Date'] || '';
+          if (messageDate) {
             try {
-              await supabase
-                .from('import_errors')
-                .insert(batch.map(record => ({
-                  user_id: payload.user_id,
-                  import_id: syncLogId,
-                  record_data: record,
-                  reason: `Batch insert error: ${error.message || "Unknown error"}`,
-                  created_at: new Date().toISOString()
-                })));
-            } catch (logError) {
-              console.error("Failed to log batch errors:", logError);
+              const date = new Date(messageDate);
+              if (!isNaN(date.getTime())) {
+                record.timestamp = date.toISOString();
+              } else {
+                throw new Error('Invalid date format');
+              }
+            } catch (e) {
+              throw new Error(`Invalid timestamp: ${messageDate}`);
+            }
+          } else {
+            throw new Error('Missing timestamp');
+          }
+          
+          // Message Type - determine direction
+          const messageType = comm['type'] || comm['Type'] || '';
+          if (messageType.toLowerCase().includes('incoming')) {
+            record.direction = 'incoming';
+            incomingCount++;
+          } else if (messageType.toLowerCase().includes('outgoing')) {
+            record.direction = 'outgoing';
+            outgoingCount++;
+          } else {
+            record.direction = 'unknown';
+          }
+          
+          // Sender Name - use from CSV for incoming, user profile for outgoing
+          const senderName = comm['sender name'] || comm['Sender Name'] || '';
+          record.sender_name = senderName;
+          
+          // If outgoing, use current user's name
+          if (record.direction === 'outgoing') {
+            record.contact_name = userFullName;
+          } else {
+            record.contact_name = senderName || null;
+          }
+          
+          // Message Text
+          record.content = comm['text'] || comm['Text'] || '';
+          
+          // Extract phone number from chat session
+          let phone = extractPhoneNumber(chatSession);
+          
+          // If we couldn't extract a phone from chat session, look for a sender ID
+          if (!phone) {
+            const senderId = comm['sender id'] || comm['Sender ID'] || comm['senderid'] || '';
+            if (isValidPhoneNumber(senderId)) {
+              phone = normalizePhoneNumber(senderId);
             }
           }
+          
+          // If we found a valid phone number, use it
+          if (phone) {
+            record.contact_phone = phone;
+            uniqueContactPhones.add(phone);
+          } else {
+            // Use chat session as fallback identifier
+            record.contact_phone = `chat:${chatSession.substring(0, 50)}`;
+          }
+          
+          validRecords.push(record);
         } else {
-          successfulInserts += (data?.length || batch.length);
-          console.log(`Successfully inserted batch ${i} with ${data?.length || batch.length} records`);
+          // For standard format, validate required fields
+          if (!comm.contact_phone) throw new Error('Missing contact phone');
+          if (!comm.type) throw new Error('Missing type');
+          if (!comm.direction || !ALLOWED_DIRECTIONS.includes(comm.direction)) {
+            throw new Error(`Invalid direction: ${comm.direction}`);
+          }
+          if (!comm.timestamp) throw new Error('Missing timestamp');
+          
+          // Count directions
+          if (comm.direction === 'incoming') incomingCount++;
+          if (comm.direction === 'outgoing') outgoingCount++;
+          
+          // Add to valid records
+          validRecords.push({
+            ...comm,
+            user_id: payload.user_id
+          });
+          
+          // Track unique contact phones
+          if (isValidPhoneNumber(comm.contact_phone)) {
+            uniqueContactPhones.add(normalizePhoneNumber(comm.contact_phone));
+          }
         }
-      } catch (error: any) {
-        console.error(`Unexpected error during batch ${i}:`, error);
-        failedInserts += batch.length;
+      } catch (err: any) {
+        invalidRecords.push({
+          record: comm,
+          reason: err.message || 'Validation failed'
+        });
       }
     }
     
-    insertedCount = successfulInserts;
-    console.log(`Import summary: ${successfulInserts} inserted, ${skipCount} skipped, ${failedInserts} failed`);
-  }
-  
-  // Check if this is the last chunk for this sync ID
-  const isLastChunk = payload.isLastChunk === true;
-  
-  // If this is the last chunk or not specified, mark the sync as completed
-  if (isLastChunk || payload.isLastChunk === undefined) {
+    // Get existing contacts to determine unmatched phones
+    const uniquePhonesArray = Array.from(uniqueContactPhones);
+    const unmatchedPhones: string[] = [];
+    
+    if (uniquePhonesArray.length > 0) {
+      const { data: existingMappings } = await supabase
+        .from('phone_contact_mappings')
+        .select('phone_number, contact_id')
+        .in('phone_number', uniquePhonesArray)
+        .eq('user_id', payload.user_id);
+      
+      const mappedPhones = new Set(existingMappings?.map(m => m.phone_number) || []);
+      unmatchedPhones.push(...uniquePhonesArray.filter(phone => !mappedPhones.has(phone)));
+    }
+    
+    // Insert valid communications into database
+    let insertedCount = 0;
+    let skippedCount = 0;
+    
+    if (validRecords.length > 0) {
+      // Prepare records for insert with user_id
+      const recordsToInsert = validRecords.map(record => ({
+        user_id: payload.user_id,
+        type: record.type,
+        direction: record.direction,
+        contact_phone: record.contact_phone,
+        contact_name: record.contact_name,
+        content: record.content,
+        duration: record.duration,
+        timestamp: record.timestamp,
+        chat_session: record.chat_session,
+        sender_name: record.sender_name
+      }));
+      
+      // Insert with on conflict do nothing to avoid duplicates
+      const { data, error, count } = await supabase
+        .from('communications')
+        .upsert(recordsToInsert, {
+          onConflict: 'user_id,contact_phone,timestamp,type,direction',
+          ignoreDuplicates: true
+        })
+        .select();
+      
+      if (error) {
+        console.error('Error inserting communications:', error);
+        
+        // Update sync log to failed status
+        await supabase
+          .from('communication_sync_logs')
+          .update({
+            status: 'failed',
+            end_time: new Date().toISOString(),
+            error_message: `Error inserting communications: ${error.message}`
+          })
+          .eq('id', syncLogId);
+          
+        return new Response(
+          JSON.stringify({ error: 'Failed to insert communications', details: error.message }),
+          { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+        );
+      }
+      
+      insertedCount = count || 0;
+      skippedCount = validRecords.length - insertedCount;
+    }
+    
+    // Process contact mappings - create mappings for any new phone numbers
+    const phoneNumbers = Array.from(uniqueContactPhones);
+    
+    if (phoneNumbers.length > 0) {
+      // Get existing mappings
+      const { data: existingMappings } = await supabase
+        .from('phone_contact_mappings')
+        .select('phone_number')
+        .eq('user_id', payload.user_id);
+      
+      const existingPhoneNumbers = existingMappings 
+        ? existingMappings.map(mapping => mapping.phone_number) 
+        : [];
+        
+      // Filter out phone numbers that already have mappings
+      const newPhoneNumbers = phoneNumbers.filter(
+        number => !existingPhoneNumbers.includes(number)
+      );
+      
+      // Create mappings for new phone numbers
+      if (newPhoneNumbers.length > 0) {
+        const newMappings = newPhoneNumbers.map(phoneNumber => {
+          // Find a communication with this phone number to get the contact name
+          const communication = validRecords.find(
+            comm => comm.contact_phone === phoneNumber && comm.direction === 'incoming'
+          );
+          
+          return {
+            user_id: payload.user_id,
+            phone_number: phoneNumber,
+            contact_name: communication?.contact_name || communication?.sender_name || null
+          };
+        });
+        
+        await supabase
+          .from('phone_contact_mappings')
+          .insert(newMappings);
+      }
+    }
+    
+    // Log any invalid records to import_errors table
+    if (invalidRecords.length > 0) {
+      try {
+        await supabase
+          .from('import_errors')
+          .insert({
+            user_id: payload.user_id,
+            sync_id: syncLogId,
+            errors: invalidRecords,
+            timestamp: new Date().toISOString()
+          });
+      } catch (errLoggingError) {
+        console.error('Error logging invalid records:', errLoggingError);
+      }
+    }
+    
     // Update sync log to completed status
     const { error: updateError } = await supabase
       .from('communication_sync_logs')
@@ -298,96 +417,39 @@ serve(async (req) => {
     
     if (updateError) {
       console.error('Error updating sync log:', updateError);
-    } else {
-      console.log(`Marked sync log ${syncLogId} as completed with ${insertedCount} records`);
     }
     
-    // Process contact mappings - create mappings for any new phone numbers
-    const phoneNumbers = [...new Set(validCommunications.map(comm => comm.contact_phone).filter(p => p !== 'unknown'))];
-    const chatSessions = [...new Set(validCommunications.map(comm => comm.chat_session).filter(Boolean))];
-    
-    // Unique contact identifiers from both phone numbers and chat sessions
-    const contactIdentifiers = new Set([...phoneNumbers, ...chatSessions]);
-    
-    if (contactIdentifiers.size > 0) {
-      // Get existing mappings
-      const { data: existingMappings } = await supabase
-        .from('phone_contact_mappings')
-        .select('phone_number')
-        .eq('user_id', payload.user_id);
-      
-      const existingPhoneNumbers = existingMappings 
-        ? existingMappings.map(mapping => mapping.phone_number) 
-        : [];
-        
-      // Filter out identifiers that already have mappings
-      const newIdentifiers = Array.from(contactIdentifiers).filter(
-        identifier => !existingPhoneNumbers.includes(identifier)
-      );
-      
-      // Create mappings for new identifiers
-      if (newIdentifiers.length > 0) {
-        const newMappings = newIdentifiers.map(identifier => {
-          // Find a communication with this identifier to get the contact name
-          const communication = validCommunications.find(
-            comm => comm.contact_phone === identifier || comm.chat_session === identifier
-          );
-          
-          return {
-            user_id: payload.user_id,
-            phone_number: identifier,
-            contact_name: communication?.contact_name || null
-          };
-        });
-        
-        const { error: mappingError } = await supabase
-          .from('phone_contact_mappings')
-          .insert(newMappings);
-          
-        if (mappingError) {
-          console.error("Error creating phone contact mappings:", mappingError);
-        } else {
-          console.log(`Created ${newMappings.length} new phone contact mappings`);
-        }
-      }
-    }
-    
-    // Update user's last_import_date in user_settings
-    const { error: settingsError } = await supabase
-      .from('user_settings')
-      .upsert({
-        user_id: payload.user_id,
-        last_import_date: new Date().toISOString()
-      }, {
-        onConflict: 'user_id'
-      });
-      
-    if (settingsError) {
-      console.error("Error updating user_settings:", settingsError);
-    }
-  } else {
-    console.log(`This is not the last chunk for sync ${syncLogId}, keeping status as in_progress`);
-  }
-  
-  // Calculate status code based on results
-  // Use 200 if everything succeeded, 207 (Multi-Status) if some failed but others succeeded
-  const statusCode = invalidRecords.length > 0 ? 207 : 200;
-  
-  // Return appropriate response
-  return new Response(
-    JSON.stringify({
-      success: true,
-      processed: validCommunications.length + invalidCommunications.length,
-      inserted: insertedCount,
-      skipped: skipCount,
-      invalid: invalidCommunications.length,
-      invalidRecords,
+    // Prepare response
+    const response: ImportResponse = {
+      status: invalidRecords.length > 0 ? 'partial_success' : 'success',
       sync_id: syncLogId,
-      status: statusCode === 200 ? 'success' : 'partial_success'
-    }),
-    { 
-      status: statusCode, 
-      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+      processed: validRecords.length + invalidRecords.length,
+      inserted: insertedCount,
+      skipped: skippedCount,
+      invalid: invalidRecords.length,
+      incoming: incomingCount,
+      outgoing: outgoingCount,
+      unmatchedPhones,
+    };
+    
+    // Include first 10 invalid records in the response for debugging
+    if (invalidRecords.length > 0) {
+      response.invalidRecords = invalidRecords.slice(0, 10);
     }
-  );
+    
+    // Return success response
+    return new Response(
+      JSON.stringify(response),
+      { 
+        status: 200, 
+        headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+      }
+    );
+  } catch (err: any) {
+    console.error('Unhandled error:', err);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error', message: err.message }),
+      { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+    );
+  }
 });
