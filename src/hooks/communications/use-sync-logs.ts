@@ -1,5 +1,5 @@
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,6 +7,8 @@ import { MultiRowResponse } from '@/types/communicationTypes';
 
 export function useSyncLogs() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   
   // Function to fetch sync logs
   const fetchSyncLogs = async () => {
@@ -31,8 +33,6 @@ export function useSyncLogs() {
   // Function to initiate a manual sync
   const initiateManualSync = async () => {
     try {
-      const { toast } = useToast();
-      
       // Make sure we have a user before proceeding
       if (!user || !user.id) {
         toast({
@@ -62,7 +62,6 @@ export function useSyncLogs() {
       });
       
       // Invalidate queries to refresh the data
-      const queryClient = await import('@tanstack/react-query').then(m => m.useQueryClient())();
       queryClient.invalidateQueries({ queryKey: ['communication_sync_logs'] });
       
       // Simulate a completed sync after 3 seconds
@@ -87,7 +86,6 @@ export function useSyncLogs() {
       
       return true;
     } catch (error: any) {
-      const { toast } = useToast();
       toast({
         title: 'Error',
         description: error.message || 'Failed to initiate manual sync',
