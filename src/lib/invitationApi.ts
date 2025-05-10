@@ -1,7 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { InviteCheckResponse, InvitationResponse } from '@/types/invitationTypes';
-import { SingleRowResponse } from '@/types/communicationTypes';
 
 /**
  * Check if an invitation already exists for the given email and organization
@@ -45,12 +44,17 @@ export async function sendInvitationEmail(
  * Get user ID from profile
  */
 export async function getUserProfile(email: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('email', email)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .single();
     
-  if (error) throw error;
-  return data?.id || null;
+    if (error) throw error;
+    return data?.id || null;
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return null;
+  }
 }
