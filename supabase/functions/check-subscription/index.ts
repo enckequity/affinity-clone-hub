@@ -30,99 +30,153 @@ serve(async (req) => {
     logStep("Function started");
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
+    if (!stripeKey) {
+      const errorMsg = "STRIPE_SECRET_KEY is not set";
+      logStep("Configuration error", { message: errorMsg });
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
+    }
+    
     logStep("Stripe key verified");
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
+    if (!authHeader) {
+      const errorMsg = "No authorization header provided";
+      logStep("Authentication error", { message: errorMsg });
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+    
     logStep("Authorization header found");
 
     const token = authHeader.replace("Bearer ", "");
     logStep("Authenticating user with token");
     
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
+    if (userError) {
+      const errorMsg = `Authentication error: ${userError.message}`;
+      logStep("Authentication error", { message: errorMsg });
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+    
     const user = userData.user;
-    if (!user?.email) throw new Error("User not authenticated or email not available");
+    if (!user?.email) {
+      const errorMsg = "User not authenticated or email not available";
+      logStep("Authentication error", { message: errorMsg });
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+    
     logStep("User authenticated", { userId: user.id, email: user.email });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     
-    if (customers.data.length === 0) {
-      logStep("No customer found, updating unsubscribed state");
+    try {
+      const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+      
+      if (customers.data.length === 0) {
+        logStep("No customer found, updating unsubscribed state");
+        await supabaseClient.from("subscribers").upsert({
+          email: user.email,
+          user_id: user.id,
+          stripe_customer_id: null,
+          subscribed: false,
+          subscription_tier: null,
+          subscription_end: null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'email' });
+        
+        return new Response(JSON.stringify({ subscribed: false }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+
+      const customerId = customers.data[0].id;
+      logStep("Found Stripe customer", { customerId });
+
+      const subscriptions = await stripe.subscriptions.list({
+        customer: customerId,
+        status: "active",
+        limit: 1,
+      });
+      
+      const hasActiveSub = subscriptions.data.length > 0;
+      let subscriptionTier = null;
+      let subscriptionEnd = null;
+
+      if (hasActiveSub) {
+        const subscription = subscriptions.data[0];
+        subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
+        logStep("Active subscription found", { subscriptionId: subscription.id, endDate: subscriptionEnd });
+        
+        // Try to determine subscription tier from metadata first (more reliable)
+        if (subscription.metadata && subscription.metadata.planName) {
+          subscriptionTier = subscription.metadata.planName;
+          logStep("Found plan name in metadata", { subscriptionTier });
+        } else {
+          // Fallback to determining tier from price amount
+          try {
+            const priceId = subscription.items.data[0].price.id;
+            const price = await stripe.prices.retrieve(priceId);
+            const amount = price.unit_amount || 0;
+            
+            if (amount <= 999) {
+              subscriptionTier = "Basic";
+            } else if (amount <= 1999) {
+              subscriptionTier = "Professional";
+            } else {
+              subscriptionTier = "Enterprise";
+            }
+            
+            logStep("Determined subscription tier from price", { priceId, amount, subscriptionTier });
+          } catch (err) {
+            logStep("Error determining tier from price", { error: String(err) });
+            // If we can't determine the tier, use a default
+            subscriptionTier = "Unknown";
+          }
+        }
+      } else {
+        logStep("No active subscription found");
+      }
+
       await supabaseClient.from("subscribers").upsert({
         email: user.email,
         user_id: user.id,
-        stripe_customer_id: null,
-        subscribed: false,
-        subscription_tier: null,
-        subscription_end: null,
+        stripe_customer_id: customerId,
+        subscribed: hasActiveSub,
+        subscription_tier: subscriptionTier,
+        subscription_end: subscriptionEnd,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'email' });
+
+      logStep("Updated database with subscription info", { subscribed: hasActiveSub, subscriptionTier });
       
-      return new Response(JSON.stringify({ subscribed: false }), {
+      return new Response(JSON.stringify({
+        subscribed: hasActiveSub,
+        subscription_tier: subscriptionTier,
+        subscription_end: subscriptionEnd
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       });
+    } catch (stripeErr) {
+      const errorMsg = `Stripe API error: ${stripeErr instanceof Error ? stripeErr.message : String(stripeErr)}`;
+      logStep("Stripe API error", { message: errorMsg });
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
     }
-
-    const customerId = customers.data[0].id;
-    logStep("Found Stripe customer", { customerId });
-
-    const subscriptions = await stripe.subscriptions.list({
-      customer: customerId,
-      status: "active",
-      limit: 1,
-    });
-    
-    const hasActiveSub = subscriptions.data.length > 0;
-    let subscriptionTier = null;
-    let subscriptionEnd = null;
-
-    if (hasActiveSub) {
-      const subscription = subscriptions.data[0];
-      subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
-      logStep("Active subscription found", { subscriptionId: subscription.id, endDate: subscriptionEnd });
-      
-      // Determine subscription tier from price
-      const priceId = subscription.items.data[0].price.id;
-      const price = await stripe.prices.retrieve(priceId);
-      const amount = price.unit_amount || 0;
-      
-      if (amount <= 999) {
-        subscriptionTier = "Basic";
-      } else if (amount <= 1999) {
-        subscriptionTier = "Premium";
-      } else {
-        subscriptionTier = "Enterprise";
-      }
-      
-      logStep("Determined subscription tier", { priceId, amount, subscriptionTier });
-    } else {
-      logStep("No active subscription found");
-    }
-
-    await supabaseClient.from("subscribers").upsert({
-      email: user.email,
-      user_id: user.id,
-      stripe_customer_id: customerId,
-      subscribed: hasActiveSub,
-      subscription_tier: subscriptionTier,
-      subscription_end: subscriptionEnd,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'email' });
-
-    logStep("Updated database with subscription info", { subscribed: hasActiveSub, subscriptionTier });
-    
-    return new Response(JSON.stringify({
-      subscribed: hasActiveSub,
-      subscription_tier: subscriptionTier,
-      subscription_end: subscriptionEnd
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR in check-subscription", { message: errorMessage });

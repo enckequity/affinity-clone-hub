@@ -23,9 +23,16 @@ serve(async (req) => {
     logStep("Function started");
     
     // Parse request body
-    const { priceId, planName } = await req.json();
+    const requestData = await req.json();
+    const { priceId, planName } = requestData;
+    
     if (!priceId) {
-      throw new Error("Price ID is required");
+      const errorMsg = "Price ID is required";
+      logStep("Validation error", { message: errorMsg });
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      });
     }
     
     logStep("Request data", { priceId, planName });
@@ -37,17 +44,46 @@ serve(async (req) => {
     );
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
+    if (!stripeKey) {
+      const errorMsg = "STRIPE_SECRET_KEY is not set";
+      logStep("Configuration error", { message: errorMsg });
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
+    }
     
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
+    if (!authHeader) {
+      const errorMsg = "No authorization header provided";
+      logStep("Authentication error", { message: errorMsg });
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
     
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
+    if (userError) {
+      const errorMsg = `Authentication error: ${userError.message}`;
+      logStep("Authentication error", { message: errorMsg });
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
     
     const user = userData.user;
-    if (!user?.email) throw new Error("User not authenticated or email not available");
+    if (!user?.email) {
+      const errorMsg = "User not authenticated or email not available";
+      logStep("Authentication error", { message: errorMsg });
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+    
     logStep("User authenticated", { userId: user.id, email: user.email });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
@@ -61,41 +97,61 @@ serve(async (req) => {
       logStep("Found existing customer", { customerId });
     } else {
       // Create a new customer
-      const newCustomer = await stripe.customers.create({
-        email: user.email,
-        metadata: {
-          userId: user.id
-        }
-      });
-      customerId = newCustomer.id;
-      logStep("Created new customer", { customerId });
+      try {
+        const newCustomer = await stripe.customers.create({
+          email: user.email,
+          metadata: {
+            userId: user.id
+          }
+        });
+        customerId = newCustomer.id;
+        logStep("Created new customer", { customerId });
+      } catch (err) {
+        const errorMsg = `Error creating Stripe customer: ${err instanceof Error ? err.message : String(err)}`;
+        logStep("Stripe API error", { message: errorMsg });
+        return new Response(JSON.stringify({ error: errorMsg }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 500,
+        });
+      }
     }
 
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-      mode: "subscription",
-      success_url: `${req.headers.get("origin")}/settings?tab=billing&status=success`,
-      cancel_url: `${req.headers.get("origin")}/settings?tab=billing&status=canceled`,
-      subscription_data: {
-        metadata: {
-          userId: user.id
+    try {
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        mode: "subscription",
+        success_url: `${req.headers.get("origin")}/settings?tab=billing&status=success`,
+        cancel_url: `${req.headers.get("origin")}/settings?tab=billing&status=canceled`,
+        subscription_data: {
+          metadata: {
+            userId: user.id,
+            planName: planName || 'Unknown'
+          }
         }
-      }
-    });
+      });
 
-    logStep("Created checkout session", { sessionId: session.id, url: session.url });
+      logStep("Created checkout session", { sessionId: session.id, url: session.url });
 
-    return new Response(JSON.stringify({ url: session.url }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+      return new Response(JSON.stringify({ url: session.url }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    } catch (err) {
+      // This catches errors like invalid price ID
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      logStep("Stripe checkout error", { message: errorMsg });
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR in create-checkout", { message: errorMessage });

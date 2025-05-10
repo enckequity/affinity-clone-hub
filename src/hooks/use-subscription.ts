@@ -62,6 +62,15 @@ export const useSubscription = () => {
   }, [user]);
 
   const createCheckout = useCallback(async (priceId: string, planName: string) => {
+    if (!priceId) {
+      toast({
+        title: 'Checkout Error',
+        description: 'Invalid price ID provided',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('create-checkout', {
         body: { priceId, planName },
@@ -70,7 +79,7 @@ export const useSubscription = () => {
       if (error) {
         toast({
           title: 'Checkout Error',
-          description: error.message,
+          description: error.message || 'Failed to create checkout session',
           variant: 'destructive',
         });
         return;
@@ -78,6 +87,12 @@ export const useSubscription = () => {
 
       if (data?.url) {
         window.location.href = data.url;
+      } else {
+        toast({
+          title: 'Checkout Error',
+          description: 'No checkout URL returned from server',
+          variant: 'destructive',
+        });
       }
     } catch (err) {
       console.error('Error creating checkout session:', err);
@@ -96,7 +111,7 @@ export const useSubscription = () => {
       if (error) {
         toast({
           title: 'Portal Error',
-          description: error.message,
+          description: error.message || 'Failed to open customer portal',
           variant: 'destructive',
         });
         return;
@@ -104,6 +119,12 @@ export const useSubscription = () => {
 
       if (data?.url) {
         window.location.href = data.url;
+      } else {
+        toast({
+          title: 'Portal Error',
+          description: 'No portal URL returned from server',
+          variant: 'destructive',
+        });
       }
     } catch (err) {
       console.error('Error opening customer portal:', err);

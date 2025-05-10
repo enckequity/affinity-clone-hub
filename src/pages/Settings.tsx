@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -15,7 +14,7 @@ import {
   User, Mail, CreditCard, Bell, CalendarClock, MessageSquare, 
   PlusCircle, FileText, Inbox, LogOut, Database, Users, Plus, 
   CreditCard as CreditCardIcon, Calendar, Bookmark, Package, Phone,
-  CheckCircle, Loader2, RefreshCw
+  CheckCircle, Loader2, RefreshCw, AlertCircle
 } from "lucide-react";
 import { InviteTeamMember } from '@/components/settings/InviteTeamMember';
 import { CommunicationsSettings } from '@/components/settings/CommunicationsSettings';
@@ -25,11 +24,12 @@ import { useSearchParams } from 'react-router-dom';
 import { useSubscription } from '@/hooks/use-subscription';
 import { format } from 'date-fns';
 
-// Define the price IDs for each plan
+// Define the price IDs for each plan - use test mode IDs while developing
+// You MUST replace these with your actual Stripe price IDs
 const PLAN_PRICE_IDS = {
-  basic: 'price_1OhxgBKY2pLqehAq39vM0qvs', // Replace with your actual Stripe price IDs
-  professional: 'price_1OhxgeKY2pLqehAqIlT9GQX6',
-  enterprise: 'price_1OhxgBKY2pLqehAq39vM0qvs'
+  basic: 'price_basic', // Replace with your actual Stripe price ID
+  professional: 'price_professional', // Replace with your actual Stripe price ID
+  enterprise: 'price_enterprise' // Replace with your actual Stripe price ID
 };
 
 const Settings = () => {
@@ -105,12 +105,12 @@ const Settings = () => {
     setSearchParams(searchParams);
   };
 
-  const handleCheckoutProfessional = () => {
-    createCheckout(PLAN_PRICE_IDS.professional, 'Professional');
+  const handleCheckoutBasic = () => {
+    createCheckout(PLAN_PRICE_IDS.basic, 'Basic');
   };
 
-  const handleCheckoutTeam = () => {
-    createCheckout(PLAN_PRICE_IDS.enterprise, 'Team');
+  const handleCheckoutProfessional = () => {
+    createCheckout(PLAN_PRICE_IDS.professional, 'Professional');
   };
 
   const handleCheckoutEnterprise = () => {
@@ -394,8 +394,13 @@ const Settings = () => {
             
             {status.error && (
               <CardContent>
-                <div className="bg-destructive/10 text-destructive p-3 rounded-md">
-                  Error checking subscription status: {status.error}
+                <div className="bg-destructive/10 text-destructive p-4 rounded-md flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium">Error checking subscription status</p>
+                    <p className="text-sm mt-1">{status.error}</p>
+                    <p className="text-sm mt-2">Make sure your Stripe integration is properly configured and that valid price IDs are used.</p>
+                  </div>
                 </div>
               </CardContent>
             )}
@@ -444,7 +449,7 @@ const Settings = () => {
                           Manage Plan
                         </Button>
                       ) : (
-                        <Button className="w-full" onClick={() => createCheckout(PLAN_PRICE_IDS.basic, 'Basic')}>
+                        <Button className="w-full" onClick={handleCheckoutBasic}>
                           {status.subscribed ? 'Switch to Basic' : 'Subscribe'}
                         </Button>
                       )}
