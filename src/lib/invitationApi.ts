@@ -51,26 +51,10 @@ export async function sendInvitationEmail(
 
 /**
  * Get user ID from profile
- * Simplified to avoid TypeScript inference issues
+ * Stub implementation since team functionality is disabled
  */
 export async function getUserProfile(email: string): Promise<string | null> {
-  // Simple implementation to avoid type inference issues
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', email)
-      .limit(1);
-    
-    if (error) {
-      console.error('Error fetching user profile:', error);
-      return null;
-    }
-    
-    // Return ID if found, or null
-    return data && data.length > 0 ? data[0].id : null;
-  } catch (error) {
-    console.error('Error fetching user profile:', error);
-    return null;
-  }
+  // Complete stub implementation without Supabase usage to avoid type inference issues
+  console.log('Team invitations disabled - getUserProfile called with:', { email });
+  return null;
 }
