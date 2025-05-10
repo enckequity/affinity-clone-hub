@@ -24,3 +24,10 @@ enabled = true
 
 [storage]
 enabled = true
+
+[functions]
+[functions.send-team-invitation]
+verify_jwt = true
+
+[functions.accept-invitation]
+verify_jwt = true

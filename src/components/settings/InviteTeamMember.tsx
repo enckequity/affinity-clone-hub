@@ -19,34 +19,148 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Loader2 } from "lucide-react";
+
+const formSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address" }),
+  role: z.string().min(1, { message: "Please select a role" }),
+  message: z.string().optional(),
+});
 
 interface InviteTeamMemberProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onInvitationSent?: () => void;
 }
 
-export function InviteTeamMember({ open, onOpenChange }: InviteTeamMemberProps) {
-  const [email, setEmail] = useState<string>('');
-  const [role, setRole] = useState<string>('member');
-  const [message, setMessage] = useState<string>('');
+export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: InviteTeamMemberProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
   
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      email: '',
+      role: 'member',
+      message: '',
+    }
+  });
+  
+  const handleSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!user) return;
     
-    // Here you would normally send the invitation
-    console.log('Sending invitation to:', { email, role, message });
+    setIsSubmitting(true);
     
-    toast({
-      title: "Invitation sent",
-      description: `An invitation has been sent to ${email}.`,
-    });
-    
-    // Reset form and close dialog
-    setEmail('');
-    setRole('member');
-    setMessage('');
-    onOpenChange(false);
+    try {
+      // First get the organization ID for the current user
+      const { data: organizationData, error: orgError } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (orgError) throw orgError;
+      
+      // Check if the user is already a member of the organization
+      const { data: existingMember } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', values.email)
+        .maybeSingle();
+
+      if (existingMember) {
+        const { data: alreadyMember } = await supabase
+          .from('organization_members')
+          .select('*')
+          .eq('organization_id', organizationData.organization_id)
+          .eq('user_id', existingMember.id)
+          .maybeSingle();
+
+        if (alreadyMember) {
+          toast({
+            title: "User is already a member",
+            description: "This user is already a member of your organization.",
+            variant: "destructive",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
+      // Check if there's already a pending invitation for this email
+      const { data: existingInvite } = await supabase
+        .from('team_invitations')
+        .select('*')
+        .eq('organization_id', organizationData.organization_id)
+        .eq('email', values.email)
+        .maybeSingle();
+        
+      if (existingInvite) {
+        toast({
+          title: "Invitation already sent",
+          description: "There is already a pending invitation for this email address.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Create the invitation
+      const { data: invitation, error: invitationError } = await supabase
+        .from('team_invitations')
+        .insert({
+          email: values.email,
+          role: values.role,
+          organization_id: organizationData.organization_id,
+          invited_by: user.id,
+          personal_message: values.message || null
+        })
+        .select()
+        .single();
+        
+      if (invitationError) throw invitationError;
+
+      // Send the invitation email via edge function
+      const { error: emailError } = await supabase.functions.invoke('send-team-invitation', {
+        body: { 
+          invitationId: invitation.id,
+          email: values.email,
+          role: values.role,
+          message: values.message 
+        }
+      });
+      
+      if (emailError) throw emailError;
+      
+      toast({
+        title: "Invitation sent",
+        description: `An invitation has been sent to ${values.email}.`,
+      });
+      
+      // Reset form and close dialog
+      form.reset();
+      onOpenChange(false);
+      
+      if (onInvitationSent) {
+        onInvitationSent();
+      }
+    } catch (error: any) {
+      console.error("Error sending invitation:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send invitation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   return (
@@ -56,58 +170,96 @@ export function InviteTeamMember({ open, onOpenChange }: InviteTeamMemberProps) 
           <DialogTitle>Invite Team Member</DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
-            <Input 
-              id="email" 
-              type="email" 
-              placeholder="colleague@example.com" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4">
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email Address</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="colleague@example.com" 
+                      type="email"
+                      {...field}
+                      disabled={isSubmitting}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="role">Role</Label>
-            <Select value={role} onValueChange={setRole}>
-              <SelectTrigger id="role">
-                <SelectValue placeholder="Select role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
-                <SelectItem value="member">Team Member</SelectItem>
-                <SelectItem value="readonly">Read-only</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {role === 'admin' && 'Full access to all features and settings'}
-              {role === 'manager' && 'Can manage deals, contacts, and activities, but limited settings access'}
-              {role === 'member' && 'Can create and update deals, contacts, and activities'}
-              {role === 'readonly' && 'Can only view information, no editing capabilities'}
-            </p>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="message">Personal Message (Optional)</Label>
-            <Textarea 
-              id="message" 
-              placeholder="Add a personal message to your invitation..." 
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="min-h-[100px]"
+            
+            <FormField
+              control={form.control}
+              name="role"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Role</FormLabel>
+                  <FormControl>
+                    <Select value={field.value} onValueChange={field.onChange} disabled={isSubmitting}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="member">Team Member</SelectItem>
+                        <SelectItem value="readonly">Read-only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {field.value === 'admin' && 'Full access to all features and settings'}
+                    {field.value === 'manager' && 'Can manage deals, contacts, and activities, but limited settings access'}
+                    {field.value === 'member' && 'Can create and update deals, contacts, and activities'}
+                    {field.value === 'readonly' && 'Can only view information, no editing capabilities'}
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit">Send Invitation</Button>
-          </DialogFooter>
-        </form>
+            
+            <FormField
+              control={form.control}
+              name="message"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Personal Message (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Add a personal message to your invitation..." 
+                      className="min-h-[100px]"
+                      {...field}
+                      disabled={isSubmitting}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <DialogFooter>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => onOpenChange(false)}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : "Send Invitation"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
