@@ -1,10 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { InviteCheckResponse, InvitationResponse } from '@/types/invitationTypes';
-
-// Define response types for type casting
-type SingleRowResponse<T> = { data: T | null; error: Error | null };
-type MultiRowResponse<T> = { data: T[] | null; error: Error | null };
+import { SingleRowResponse } from '@/types/communicationTypes';
 
 /**
  * Check if an invitation already exists for the given email and organization
@@ -52,8 +49,8 @@ export async function getUserProfile(email: string): Promise<string | null> {
     .from('profiles')
     .select('id')
     .eq('email', email)
-    .maybeSingle() as unknown as SingleRowResponse<{ id: string }>;
-
+    .maybeSingle();
+    
   if (result.error) throw result.error;
   return result.data?.id || null;
 }
