@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Info, AlertCircle } from "lucide-react";
+import { Upload, Info, AlertCircle, FileType } from "lucide-react";
 import { FileUploadState } from "@/types/fileImport";
 
 interface FileUploadFormProps {
@@ -16,7 +16,7 @@ interface FileUploadFormProps {
 }
 
 export function FileUploadForm({ state, onFileChange, onUpload, onReset }: FileUploadFormProps) {
-  const { file, isUploading, uploadProgress, error, showConfirm, parsedData } = state;
+  const { file, isUploading, uploadProgress, error, showConfirm, parsedData, fileFormat } = state;
   
   return (
     <div className="space-y-4">
@@ -30,7 +30,7 @@ export function FileUploadForm({ state, onFileChange, onUpload, onReset }: FileU
           disabled={isUploading}
         />
         <p className="text-xs text-muted-foreground mt-1">
-          Upload your message history CSV file with phone number and timestamp columns
+          Upload your message history CSV file. We support standard CSV formats and iMessage exports.
         </p>
       </div>
       
@@ -48,8 +48,14 @@ export function FileUploadForm({ state, onFileChange, onUpload, onReset }: FileU
         <Alert>
           <Info className="h-4 w-4" />
           <AlertTitle>Ready to Import</AlertTitle>
-          <AlertDescription>
-            Found {parsedData.length} message records. Click 'Import Data' to continue.
+          <AlertDescription className="space-y-2">
+            <p>Found {parsedData.length} message records. Click 'Import Data' to continue.</p>
+            {fileFormat && (
+              <div className="flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
+                <FileType className="h-3 w-3" />
+                <span>Detected format: {fileFormat === 'imazing' ? 'iMessage Export' : fileFormat === 'standard' ? 'Standard CSV' : 'Unknown'}</span>
+              </div>
+            )}
           </AlertDescription>
         </Alert>
       )}

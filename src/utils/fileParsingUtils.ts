@@ -5,12 +5,28 @@ export type FileFormat = 'standard' | 'imazing' | 'unknown';
 
 // Function to detect file format based on headers
 export const detectFileFormat = (headers: string[]): FileFormat => {
-  // Detect standard format with columns matching the example
-  const isStandardFormat = headers.includes('phone') && 
-                          (headers.includes('timestamp') || headers.includes('date')) &&
-                          (headers.includes('text') || headers.includes('message') || headers.includes('content'));
+  // Normalize headers for case-insensitive comparison
+  const normalizedHeaders = headers.map(h => h.toLowerCase().trim());
   
-  return isStandardFormat ? 'standard' : 'unknown';
+  // Detect standard format
+  const isStandardFormat = normalizedHeaders.includes('phone') && 
+                          (normalizedHeaders.includes('timestamp') || normalizedHeaders.includes('date')) &&
+                          (normalizedHeaders.includes('text') || normalizedHeaders.includes('message') || normalizedHeaders.includes('content'));
+  
+  // Detect iMessage format
+  const isIMessageFormat = (normalizedHeaders.includes('sender id') || normalizedHeaders.includes('senderid')) && 
+                          (normalizedHeaders.includes('message date') || normalizedHeaders.includes('date')) &&
+                          (normalizedHeaders.includes('text') || normalizedHeaders.includes('message'));
+  
+  if (isIMessageFormat) {
+    return 'imazing';
+  }
+  
+  if (isStandardFormat) {
+    return 'standard';
+  }
+  
+  return 'unknown';
 };
 
 // Function to parse CSV format
@@ -62,62 +78,133 @@ export const parseCSV = (csvContent: string): any[] => {
 };
 
 // Convert CSV record to our standardized communication format
-export const standardizeCommunication = (record: Record<string, string>): CommunicationRecord => {
-  // Map common field names to our standard format
-  const phoneField = Object.keys(record).find(k => 
-    ['phone', 'phone_number', 'contact', 'contact_phone', 'number'].includes(k.toLowerCase())
-  ) || '';
-  
-  const timestampField = Object.keys(record).find(k => 
-    ['timestamp', 'date', 'time', 'datetime'].includes(k.toLowerCase())
-  ) || '';
-  
-  const contentField = Object.keys(record).find(k => 
-    ['content', 'text', 'message', 'body', 'msg'].includes(k.toLowerCase())
-  ) || '';
-  
-  const directionField = Object.keys(record).find(k => 
-    ['direction', 'type', 'messagetype', 'message_type'].includes(k.toLowerCase())
-  ) || '';
-  
-  const nameField = Object.keys(record).find(k => 
-    ['name', 'contact_name', 'sender', 'recipient'].includes(k.toLowerCase())
-  ) || '';
-  
-  // Determine direction based on available fields
-  let direction = 'unknown';
-  if (directionField && record[directionField]) {
-    const dirValue = record[directionField].toLowerCase();
-    if (dirValue.includes('in') || dirValue.includes('received')) {
-      direction = 'incoming';
-    } else if (dirValue.includes('out') || dirValue.includes('sent')) {
-      direction = 'outgoing';
-    }
-  }
-  
-  // Try to parse timestamp
-  let timestamp = record[timestampField] || new Date().toISOString();
-  if (timestamp && !timestamp.includes('T')) {
-    // Try to parse various date formats
-    try {
-      const date = new Date(timestamp);
-      if (!isNaN(date.getTime())) {
-        timestamp = date.toISOString();
+export const standardizeCommunication = (record: Record<string, string>, fileFormat: FileFormat): CommunicationRecord => {
+  if (fileFormat === 'imazing') {
+    // iMessage format mapping
+    const senderIdField = Object.keys(record).find(k => 
+      ['sender id', 'senderid', 'sender', 'from'].includes(k.toLowerCase())
+    ) || '';
+    
+    const recipientIdField = Object.keys(record).find(k => 
+      ['recipient id', 'recipientid', 'recipient', 'to'].includes(k.toLowerCase())
+    ) || '';
+    
+    const senderNameField = Object.keys(record).find(k => 
+      ['sender name', 'sendername', 'from name'].includes(k.toLowerCase())
+    ) || '';
+    
+    const messageDateField = Object.keys(record).find(k => 
+      ['message date', 'messagedate', 'date', 'time'].includes(k.toLowerCase())
+    ) || '';
+    
+    const textField = Object.keys(record).find(k => 
+      ['text', 'message', 'content', 'body'].includes(k.toLowerCase())
+    ) || '';
+    
+    const serviceField = Object.keys(record).find(k => 
+      ['service', 'platform', 'type'].includes(k.toLowerCase())
+    ) || '';
+    
+    // Determine direction based on service or other fields
+    let direction = 'unknown';
+    let phoneNumber = '';
+    
+    // Try to determine the direction
+    if (record[serviceField]?.toLowerCase()?.includes('imessage')) {
+      // For iMessage, we need to determine from the sender and recipient
+      const myAppleId = record[recipientIdField] || '';
+      const contactId = record[senderIdField] || '';
+      
+      // If sender ID is not my Apple ID, it's incoming from a contact
+      if (contactId && contactId !== myAppleId) {
+        direction = 'incoming';
+        phoneNumber = contactId;
+      } else {
+        direction = 'outgoing';
+        phoneNumber = record[recipientIdField] || '';
       }
-    } catch (e) {
-      console.warn("Could not parse timestamp:", timestamp);
-      timestamp = new Date().toISOString();
     }
-  }
+    
+    // Try to parse iMessage date format
+    let timestamp = record[messageDateField] || new Date().toISOString();
+    if (timestamp && !timestamp.includes('T')) {
+      // iMessage export typically has a format like "2023-10-15 14:30:25"
+      try {
+        const date = new Date(timestamp);
+        if (!isNaN(date.getTime())) {
+          timestamp = date.toISOString();
+        }
+      } catch (e) {
+        console.warn("Could not parse timestamp:", timestamp);
+        timestamp = new Date().toISOString();
+      }
+    }
+    
+    return {
+      contact_phone: phoneNumber,
+      contact_name: record[senderNameField] || '',
+      direction: direction,
+      type: 'text', // Assuming all are text messages
+      content: record[textField] || '',
+      timestamp: timestamp,
+    };
+  } else {
+    // Standard format mapping (existing code)
+    const phoneField = Object.keys(record).find(k => 
+      ['phone', 'phone_number', 'contact', 'contact_phone', 'number'].includes(k.toLowerCase())
+    ) || '';
+    
+    const timestampField = Object.keys(record).find(k => 
+      ['timestamp', 'date', 'time', 'datetime'].includes(k.toLowerCase())
+    ) || '';
+    
+    const contentField = Object.keys(record).find(k => 
+      ['content', 'text', 'message', 'body', 'msg'].includes(k.toLowerCase())
+    ) || '';
+    
+    const directionField = Object.keys(record).find(k => 
+      ['direction', 'type', 'messagetype', 'message_type'].includes(k.toLowerCase())
+    ) || '';
+    
+    const nameField = Object.keys(record).find(k => 
+      ['name', 'contact_name', 'sender', 'recipient'].includes(k.toLowerCase())
+    ) || '';
+    
+    // Determine direction based on available fields
+    let direction = 'unknown';
+    if (directionField && record[directionField]) {
+      const dirValue = record[directionField].toLowerCase();
+      if (dirValue.includes('in') || dirValue.includes('received')) {
+        direction = 'incoming';
+      } else if (dirValue.includes('out') || dirValue.includes('sent')) {
+        direction = 'outgoing';
+      }
+    }
+    
+    // Try to parse timestamp
+    let timestamp = record[timestampField] || new Date().toISOString();
+    if (timestamp && !timestamp.includes('T')) {
+      // Try to parse various date formats
+      try {
+        const date = new Date(timestamp);
+        if (!isNaN(date.getTime())) {
+          timestamp = date.toISOString();
+        }
+      } catch (e) {
+        console.warn("Could not parse timestamp:", timestamp);
+        timestamp = new Date().toISOString();
+      }
+    }
 
-  return {
-    contact_phone: record[phoneField] || 'unknown',
-    contact_name: record[nameField] || '',
-    direction: direction,
-    type: 'text', // Assuming all are text messages
-    content: record[contentField] || '',
-    timestamp: timestamp,
-  };
+    return {
+      contact_phone: record[phoneField] || 'unknown',
+      contact_name: record[nameField] || '',
+      direction: direction,
+      type: 'text', // Assuming all are text messages
+      content: record[contentField] || '',
+      timestamp: timestamp,
+    };
+  }
 };
 
 // Parse file content based on format
@@ -139,14 +226,17 @@ export const parseFileContent = async (file: File): Promise<{
         const lines = csv.split('\n');
         
         // Get headers to detect format
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        const headers = lines[0].split(',').map(h => h.trim());
         const fileFormat = detectFileFormat(headers);
         
         // Parse CSV
         const parsedRecords = parseCSV(csv);
         
+        console.log("File format detected:", fileFormat);
+        console.log("Sample record:", parsedRecords[0]);
+        
         // Convert to standardized format
-        const standardizedData = parsedRecords.map(standardizeCommunication);
+        const standardizedData = parsedRecords.map(record => standardizeCommunication(record, fileFormat));
         
         // Filter out records with missing required fields
         const validData = standardizedData.filter(record => 
@@ -155,7 +245,7 @@ export const parseFileContent = async (file: File): Promise<{
         );
         
         if (!validData || validData.length === 0) {
-          reject(new Error("No valid data found in the file. Please ensure your CSV contains phone number and timestamp columns."));
+          reject(new Error("No valid data found in the file. Please ensure your CSV contains the required columns for your format type."));
           return;
         }
         

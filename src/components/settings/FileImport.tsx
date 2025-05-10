@@ -58,6 +58,12 @@ export function FileImport() {
         showConfirm: true,
         fileFormat
       }));
+      
+      // Show toast with the detected format
+      toast({
+        title: "File parsed successfully",
+        description: `Detected format: ${fileFormat === 'imazing' ? 'iMessage Export' : fileFormat === 'standard' ? 'Standard CSV' : 'Unknown'}`,
+      });
     } catch (err: any) {
       console.error("Error parsing file:", err);
       setState(prev => ({
