@@ -1,36 +1,18 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Mail, Check, X, AlertCircle } from "lucide-react";
+import { Plus, Mail, X, AlertCircle } from "lucide-react";
 import { InviteTeamMember } from '@/components/settings/InviteTeamMember';
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from '@tanstack/react-query';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
-interface TeamMember {
-  id: string;
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
-  role: string;
-  status: 'active' | 'pending';
-  avatar_url?: string | null;
-  job_title?: string | null;
-}
-
-interface Invitation {
-  id: string;
-  email: string;
-  role: string;
-  created_at: string;
-  organization_id: string;
-}
+import { TeamMember, TeamInvitation } from '@/types/teamTypes';
 
 export function TeamSettings() {
   const [isInviting, setIsInviting] = useState(false);
@@ -54,35 +36,26 @@ export function TeamSettings() {
         return [];
       }
 
+      // Get members using a stored procedure
       const { data, error } = await supabase
-        .from('organization_members')
-        .select(`
-          user_id,
-          role,
-          profiles!inner(
-            id,
-            email:auth.users!inner(email),
-            first_name,
-            last_name,
-            avatar_url
-          )
-        `)
-        .eq('organization_id', organizationData.organization_id);
+        .rpc('get_organization_members', {
+          p_organization_id: organizationData.organization_id
+        });
 
       if (error) {
         console.error('Error fetching team members:', error);
         return [];
       }
 
-      return data.map(member => ({
+      return data.map((member: any) => ({
         id: member.user_id,
-        email: member.profiles.email,
-        first_name: member.profiles.first_name,
-        last_name: member.profiles.last_name,
-        avatar_url: member.profiles.avatar_url,
+        email: member.email,
+        first_name: member.first_name,
+        last_name: member.last_name,
+        avatar_url: member.avatar_url,
         role: member.role,
         status: 'active' as const
-      }));
+      })) as TeamMember[];
     },
     enabled: !!user
   });
@@ -104,17 +77,18 @@ export function TeamSettings() {
         return [];
       }
 
+      // Get invitations using a stored procedure
       const { data, error } = await supabase
-        .from('team_invitations')
-        .select('*')
-        .eq('organization_id', organizationData.organization_id);
+        .rpc('get_team_invitations', {
+          p_organization_id: organizationData.organization_id
+        });
 
       if (error) {
         console.error('Error fetching team invitations:', error);
         return [];
       }
 
-      return data;
+      return data as TeamInvitation[];
     },
     enabled: !!user
   });
@@ -122,9 +96,9 @@ export function TeamSettings() {
   const handleDelete = async (invitationId: string) => {
     try {
       const { error } = await supabase
-        .from('team_invitations')
-        .delete()
-        .eq('id', invitationId);
+        .rpc('delete_team_invitation', {
+          p_invitation_id: invitationId
+        });
       
       if (error) throw error;
       
@@ -143,7 +117,7 @@ export function TeamSettings() {
     }
   };
 
-  const handleResend = async (invitation: Invitation) => {
+  const handleResend = async (invitation: TeamInvitation) => {
     try {
       // Call the edge function to resend the invitation email
       const { error } = await supabase.functions.invoke('send-team-invitation', {
@@ -301,7 +275,7 @@ export function TeamSettings() {
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          onClick={() => handleResend(member as unknown as Invitation)}
+                          onClick={() => handleResend(invitations?.find(inv => inv.id === member.id) as TeamInvitation)}
                           title="Resend invitation"
                         >
                           <Mail className="h-4 w-4" />

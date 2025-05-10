@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { 
   Select,
   SelectContent,
@@ -26,6 +25,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2 } from "lucide-react";
+import { TeamInvitation } from '@/types/teamTypes';
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -95,14 +95,16 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
       }
       
       // Check if there's already a pending invitation for this email
-      const { data: existingInvite } = await supabase
-        .from('team_invitations')
-        .select('*')
-        .eq('organization_id', organizationData.organization_id)
-        .eq('email', values.email)
-        .maybeSingle();
+      // We need to use a generic approach since the type isn't in the generated types
+      const { data: existingInvite, error: inviteCheckError } = await supabase
+        .rpc('get_team_invitation_by_email', {
+          p_email: values.email,
+          p_organization_id: organizationData.organization_id
+        });
         
-      if (existingInvite) {
+      if (inviteCheckError) {
+        console.error("Error checking invitation:", inviteCheckError);
+      } else if (existingInvite && existingInvite.length > 0) {
         toast({
           title: "Invitation already sent",
           description: "There is already a pending invitation for this email address.",
@@ -112,18 +114,15 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         return;
       }
       
-      // Create the invitation
+      // Create the invitation using a stored procedure
       const { data: invitation, error: invitationError } = await supabase
-        .from('team_invitations')
-        .insert({
-          email: values.email,
-          role: values.role,
-          organization_id: organizationData.organization_id,
-          invited_by: user.id,
-          personal_message: values.message || null
-        })
-        .select()
-        .single();
+        .rpc('create_team_invitation', {
+          p_email: values.email,
+          p_role: values.role,
+          p_organization_id: organizationData.organization_id,
+          p_invited_by: user.id,
+          p_personal_message: values.message || null
+        });
         
       if (invitationError) throw invitationError;
 
