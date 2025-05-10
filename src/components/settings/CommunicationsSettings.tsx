@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { RefreshCw, Clock, AlertCircle, CheckCircle } from "lucide-react";
 import { format } from 'date-fns';
 import { useCommunications } from '@/hooks/use-communications';
 import { FileImport } from '@/components/settings/FileImport';
+import { ScheduledImport } from '@/components/settings/ScheduledImport';
 
 export function CommunicationsSettings() {
   const {
@@ -17,6 +18,8 @@ export function CommunicationsSettings() {
   return (
     <div className="space-y-6">
       <FileImport />
+      
+      <ScheduledImport />
       
       <Card>
         <CardHeader>
