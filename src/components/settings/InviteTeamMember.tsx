@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Dialog,
@@ -59,33 +58,34 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
     setIsSubmitting(true);
     
     try {
-      // First get the organization ID for the current user
-      const { data: orgMember, error: orgError } = await supabase
+      // First get the organization ID for the current user using an explicit type
+      // This avoids deep type inference that can cause TS2589 error
+      const orgResult = await supabase
         .from('organization_members')
         .select('organization_id')
         .eq('user_id', user.id)
         .single();
       
-      if (orgError) throw orgError;
+      if (orgResult.error) throw orgResult.error;
       
-      const organizationId = orgMember.organization_id;
+      const organizationId = orgResult.data.organization_id;
       
       // Check if the user is already a member of the organization
-      const { data: existingMember } = await supabase
+      const existingMemberResult = await supabase
         .from('profiles')
         .select('id')
         .eq('email', values.email)
         .maybeSingle();
 
-      if (existingMember) {
-        const { data: alreadyMember } = await supabase
+      if (existingMemberResult.data) {
+        const alreadyMemberResult = await supabase
           .from('organization_members')
-          .select('*')
+          .select()
           .eq('organization_id', organizationId)
-          .eq('user_id', existingMember.id)
+          .eq('user_id', existingMemberResult.data.id)
           .maybeSingle();
 
-        if (alreadyMember) {
+        if (alreadyMemberResult.data) {
           toast({
             title: "User is already a member",
             description: "This user is already a member of your organization.",
@@ -97,17 +97,19 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
       }
       
       // Check if there's already a pending invitation for this email
-      const { data: existingInvites, error: inviteCheckError } = await supabase.functions.invoke('check-team-invitation', {
+      const inviteCheckResult = await supabase.functions.invoke<any>('check-team-invitation', {
         body: { 
           email: values.email,
           organizationId
         }
       });
       
-      if (inviteCheckError) {
-        console.error("Error checking invitation:", inviteCheckError);
-        throw inviteCheckError;
+      if (inviteCheckResult.error) {
+        console.error("Error checking invitation:", inviteCheckResult.error);
+        throw inviteCheckResult.error;
       } 
+      
+      const existingInvites = inviteCheckResult.data;
       
       if (existingInvites && existingInvites.length > 0) {
         toast({
@@ -120,7 +122,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
       }
       
       // Create the invitation via edge function
-      const { data: invitation, error: invitationError } = await supabase.functions.invoke('create-team-invitation', {
+      const invitationResult = await supabase.functions.invoke<{id: string}>('create-team-invitation', {
         body: { 
           email: values.email,
           role: values.role,
@@ -130,19 +132,19 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         }
       });
       
-      if (invitationError) throw invitationError;
+      if (invitationResult.error) throw invitationResult.error;
 
       // Send the invitation email via edge function
-      const { error: emailError } = await supabase.functions.invoke('send-team-invitation', {
+      const emailResult = await supabase.functions.invoke('send-team-invitation', {
         body: { 
-          invitationId: invitation.id,
+          invitationId: invitationResult.data.id,
           email: values.email,
           role: values.role,
           message: values.message 
         }
       });
       
-      if (emailError) throw emailError;
+      if (emailResult.error) throw emailResult.error;
       
       toast({
         title: "Invitation sent",
