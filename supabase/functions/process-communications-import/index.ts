@@ -164,28 +164,58 @@ serve(async (req) => {
   // Insert valid communications into database with conflict handling
   let insertedCount = 0;
   if (validCommunications.length > 0) {
-    const { data, error } = await supabase
-      .from('communications')
-      .upsert(
-        validCommunications.map((comm) => ({
-          user_id: payload.user_id,
-          type: comm.type,
-          direction: comm.direction,
-          contact_phone: comm.contact_phone,
-          contact_name: comm.contact_name,
-          content: comm.content,
-          duration: comm.duration,
-          timestamp: comm.timestamp,
-          import_id: syncLogId,
-        })),
-        { 
-          onConflict: 'user_id,contact_phone,timestamp,type',
-          ignoreDuplicates: true // This will skip inserting duplicates
-        }
-      );
+    // Modified: Instead of using onConflict which requires unique constraints,
+    // we'll use a more reliable approach to insert records
+    
+    // First, prepare the data for insertion
+    const communicationsToInsert = validCommunications.map((comm) => ({
+      user_id: payload.user_id,
+      type: comm.type,
+      direction: comm.direction,
+      contact_phone: comm.contact_phone,
+      contact_name: comm.contact_name,
+      content: comm.content,
+      duration: comm.duration,
+      timestamp: comm.timestamp,
+      import_id: syncLogId,
+    }));
+    
+    try {
+      // Insert communications without conflict handling
+      const { data, error } = await supabase
+        .from('communications')
+        .insert(communicationsToInsert);
       
-    if (error) {
-      console.error('Error inserting communications:', error);
+      if (error) {
+        console.error('Error inserting communications:', error);
+        
+        // Update sync log to failed status
+        await supabase
+          .from('communication_sync_logs')
+          .update({
+            status: 'failed',
+            end_time: new Date().toISOString(),
+            error_message: `Error inserting communications: ${error.message}`
+          })
+          .eq('id', syncLogId);
+          
+        return new Response(
+          JSON.stringify({ error: 'Failed to insert communications', details: error.message }),
+          { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+        );
+      }
+      
+      processedCount = validCommunications.length;
+      
+      // Count actual inserts by checking the response
+      const { count } = await supabase
+        .from('communications')
+        .select('id', { count: 'exact' })
+        .eq('import_id', syncLogId);
+        
+      insertedCount = count || 0;
+    } catch (error) {
+      console.error('Unexpected error during communications insert:', error);
       
       // Update sync log to failed status
       await supabase
@@ -193,25 +223,15 @@ serve(async (req) => {
         .update({
           status: 'failed',
           end_time: new Date().toISOString(),
-          error_message: `Error inserting communications: ${error.message}`
+          error_message: `Unexpected error during insert: ${error.message || 'Unknown error'}`
         })
         .eq('id', syncLogId);
         
       return new Response(
-        JSON.stringify({ error: 'Failed to insert communications', details: error.message }),
+        JSON.stringify({ error: 'Failed to process communications', details: error.message || 'Unknown error' }),
         { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
       );
     }
-    
-    processedCount = validCommunications.length;
-    
-    // Count actual inserts by checking the response
-    const { count } = await supabase
-      .from('communications')
-      .select('id', { count: 'exact' })
-      .eq('import_id', syncLogId);
-      
-    insertedCount = count || 0;
   }
   
   // Check if this is the last chunk for this sync ID
@@ -300,3 +320,4 @@ serve(async (req) => {
     }
   );
 });
+
