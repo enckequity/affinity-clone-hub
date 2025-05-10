@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
@@ -99,7 +98,12 @@ export const useFileImport = () => {
     
     // If we already have a file selected, re-parse it with the new setting
     if (state.file) {
-      handleFileChange({ target: { files: [state.file] } } as React.ChangeEvent<HTMLInputElement>);
+      // Fix: Create a proper ChangeEvent object for HTMLInputElement
+      const mockEvent = {
+        target: { files: [state.file] }
+      } as React.ChangeEvent<HTMLInputElement>;
+      
+      handleFileChange(mockEvent);
     }
   };
   

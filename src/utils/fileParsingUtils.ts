@@ -1,4 +1,3 @@
-
 import { CommunicationRecord } from "@/types/fileImport";
 
 export type FileFormat = 'standard' | 'imazing' | 'unknown';
@@ -122,7 +121,7 @@ export const standardizeCommunication = (record: Record<string, string>, fileFor
     ) || '';
     
     // Determine direction based on type field directly
-    let direction = 'unknown';
+    let direction: 'incoming' | 'outgoing' | 'missed' | 'unknown' = 'unknown';
     
     if (typeField && record[typeField]) {
       const typeValue = record[typeField].toLowerCase();
@@ -138,7 +137,6 @@ export const standardizeCommunication = (record: Record<string, string>, fileFor
     // If direction is still unknown, try using service field
     if (direction === 'unknown' && serviceField && record[serviceField]) {
       // For iMessage format, try to determine from "Type" field
-      const serviceValue = record[serviceField].toLowerCase();
       if (senderIdField && record[senderIdField]) {
         direction = 'incoming';  // If sender ID is present, it's usually incoming
       } else {
@@ -230,7 +228,7 @@ export const standardizeCommunication = (record: Record<string, string>, fileFor
     ) || '';
     
     // Determine direction based on available fields
-    let direction = 'unknown';
+    let direction: 'incoming' | 'outgoing' | 'missed' | 'unknown' = 'unknown';
     if (directionField && record[directionField]) {
       const dirValue = record[directionField].toLowerCase();
       if (dirValue.includes('in') || dirValue.includes('received')) {

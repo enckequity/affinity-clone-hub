@@ -30,3 +30,14 @@ export interface ImportResult {
   invalidRecords?: Array<{ record: any; reason: string }>;
   sync_id: string;
 }
+
+// Add the missing UserSettings interface
+export interface UserSettings {
+  user_id: string;
+  id?: string;
+  daily_import_time?: string;
+  import_enabled?: boolean;
+  last_import_date?: string;
+  created_at?: string;
+  updated_at?: string;
+}
