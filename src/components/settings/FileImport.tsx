@@ -106,10 +106,11 @@ export function FileImport() {
         
         try {
           // Call the edge function to process the chunk
+          // IMPORTANT: Changed 'import' to 'manual' to comply with database constraints
           const response = await supabase.functions.invoke('process-communications-import', {
             body: {
               communications: chunk,
-              sync_type: 'import',
+              sync_type: 'manual', // Changed from 'import' to 'manual'
               user_id: session.user.id,
               // If not the first chunk, include the sync ID to append to the same import
               ...(i > 0 && { sync_id: syncId })
