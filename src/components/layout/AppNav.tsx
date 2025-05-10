@@ -73,26 +73,27 @@ export const AppNav = ({ isSidebarCollapsed }: AppNavProps) => {
   
   return (
     <nav className="py-5 mt-2">
-      <div className="flex flex-col items-start gap-2">
+      <div className="flex flex-col items-start gap-1">
         {navItems.map((item) => (
-          <NavLink to={item.href} key={item.href} className="w-full">
+          <NavLink to={item.href} key={item.href} className="w-full px-3">
             {({ isActive }) => (
               <Button
                 variant="ghost"
                 size={isSidebarCollapsed ? "icon" : "default"}
                 className={cn(
-                  "w-full h-10",
+                  "w-full h-10 subtle-transition",
                   isActive
-                    ? "bg-muted text-primary"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/50",
                   isSidebarCollapsed 
                     ? "p-0 flex justify-center items-center" 
-                    : "justify-start px-3"
+                    : "justify-start px-3",
+                  "rounded-lg"  
                 )}
               >
                 <item.icon className="h-5 w-5 flex-shrink-0" />
                 {!isSidebarCollapsed && !isMobile && (
-                  <span className="ml-2 truncate">{item.title}</span>
+                  <span className="ml-2 truncate text-sm font-medium">{item.title}</span>
                 )}
               </Button>
             )}

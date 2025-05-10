@@ -34,16 +34,16 @@ export function AppLayout() {
   
   return (
     <SidebarProvider defaultOpen={!isMobile}>
-      <div className="min-h-screen flex w-full overflow-hidden">
+      <div className="min-h-screen flex w-full overflow-hidden bg-background">
         <div className={cn(
-          "transition-all duration-300 bg-sidebar flex-shrink-0",
-          sidebarOpen ? "w-[200px]" : "w-[60px]"
+          "transition-all duration-300 bg-sidebar flex-shrink-0 border-r border-sidebar-border",
+          sidebarOpen ? "w-[220px]" : "w-[70px]"
         )}>
           <AppNav isSidebarCollapsed={!sidebarOpen} />
         </div>
         
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className="bg-white border-b border-border h-16 flex items-center px-4 justify-between">
+          <header className="bg-card/50 backdrop-blur-sm border-b border-border h-16 flex items-center px-4 justify-between">
             <div className="flex items-center gap-2">
               <Button 
                 variant="ghost" 
@@ -60,7 +60,7 @@ export function AppLayout() {
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="gap-2"
+                className="gap-2 rounded-full"
                 onClick={() => setIsVoiceNotesOpen(true)}
               >
                 <Mic className="h-4 w-4" />
@@ -69,12 +69,12 @@ export function AppLayout() {
               
               <Dialog open={isAISearchOpen} onOpenChange={setIsAISearchOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
+                  <Button variant="outline" size="sm" className="gap-2 rounded-full">
                     <MessageSquare className="h-4 w-4" />
                     <span className="hidden md:inline">Ask AI Assistant</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[600px]">
+                <DialogContent className="sm:max-w-[600px] glass-morphism">
                   <DialogHeader>
                     <DialogTitle>AI Assistant</DialogTitle>
                   </DialogHeader>

@@ -63,26 +63,26 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				// CRM specific colors
+				// Update CRM specific colors to match iOS style
 				crm: {
-					'blue': '#3b82f6',
-					'indigo': '#6366f1',
-					'purple': '#8b5cf6',
-					'pink': '#ec4899',
-					'red': '#ef4444',
-					'orange': '#f97316',
-					'yellow': '#eab308',
-					'green': '#22c55e',
-					'teal': '#14b8a6',
-					'cyan': '#06b6d4',
+					'blue': '#0A84FF',
+					'indigo': '#5E5CE6',
+					'purple': '#BF5AF2',
+					'pink': '#FF2D55',
+					'red': '#FF3B30',
+					'orange': '#FF9F0A',
+					'yellow': '#FFCC00',
+					'green': '#34C759',
+					'teal': '#64D2FF',
+					'cyan': '#5AC8FA',
 				},
 				stage: {
-					'lead': '#f97316',
-					'qualified': '#eab308',
-					'proposal': '#3b82f6',
-					'negotiation': '#8b5cf6',
-					'closed-won': '#22c55e',
-					'closed-lost': '#ef4444',
+					'lead': '#FF9F0A',
+					'qualified': '#FFCC00',
+					'proposal': '#0A84FF',
+					'negotiation': '#5E5CE6',
+					'closed-won': '#34C759',
+					'closed-lost': '#FF3B30',
 				}
 			},
 			borderRadius: {
