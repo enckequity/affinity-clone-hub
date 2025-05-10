@@ -32,6 +32,10 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+    // Calculate expiration date (7 days from now)
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
     // Create the invitation
     const { data, error } = await supabase
       .from('team_invitations')
@@ -41,7 +45,8 @@ serve(async (req) => {
         organization_id: organizationId,
         invited_by: invitedBy,
         personal_message: personalMessage,
-        status: 'sent'
+        expires_at: expiresAt.toISOString(),
+        status: 'pending'
       })
       .select()
       .single();

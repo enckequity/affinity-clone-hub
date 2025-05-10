@@ -94,8 +94,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         }
       }
       
-      // Check if there's already a pending invitation for this email using a manual query
-      // since the team_invitations table isn't in the TypeScript type definitions
+      // Check if there's already a pending invitation for this email
       const { data: existingInvites, error: inviteCheckError } = await supabase.functions.invoke('check-team-invitation', {
         body: { 
           email: values.email,
@@ -105,7 +104,10 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
       
       if (inviteCheckError) {
         console.error("Error checking invitation:", inviteCheckError);
-      } else if (existingInvites && existingInvites.length > 0) {
+        throw inviteCheckError;
+      } 
+      
+      if (existingInvites && existingInvites.length > 0) {
         toast({
           title: "Invitation already sent",
           description: "There is already a pending invitation for this email address.",
