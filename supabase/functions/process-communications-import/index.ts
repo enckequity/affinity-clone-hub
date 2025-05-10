@@ -1,3 +1,4 @@
+
 // Follow this setup guide to integrate the Deno runtime into your application:
 // https://deno.com/manual/examples/deploy_node_server
 
@@ -317,36 +318,63 @@ serve(async (req) => {
         sender_name: record.sender_name
       }));
       
-      // Insert with on conflict do nothing to avoid duplicates
-      const { data, error, count } = await supabase
-        .from('communications')
-        .upsert(recordsToInsert, {
-          onConflict: 'user_id,contact_phone,timestamp,type,direction',
-          ignoreDuplicates: true
-        })
-        .select();
+      // Modified: Don't use upsert with onConflict since we don't have a unique constraint
+      // Instead, check for existing records before inserting
       
-      if (error) {
-        console.error('Error inserting communications:', error);
-        
-        // Update sync log to failed status
-        await supabase
-          .from('communication_sync_logs')
-          .update({
-            status: 'failed',
-            end_time: new Date().toISOString(),
-            error_message: `Error inserting communications: ${error.message}`
-          })
-          .eq('id', syncLogId);
+      const newRecordsToInsert = [];
+      for (const record of recordsToInsert) {
+        // Check if this record already exists
+        const { data: existingRecords, error: checkError } = await supabase
+          .from('communications')
+          .select('id')
+          .eq('user_id', record.user_id)
+          .eq('contact_phone', record.contact_phone)
+          .eq('timestamp', record.timestamp)
+          .eq('type', record.type)
+          .eq('direction', record.direction);
           
-        return new Response(
-          JSON.stringify({ error: 'Failed to insert communications', details: error.message }),
-          { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-        );
+        if (checkError) {
+          console.error('Error checking for existing record:', checkError);
+          continue;
+        }
+        
+        if (existingRecords && existingRecords.length > 0) {
+          // Skip this record as it already exists
+          skippedCount++;
+        } else {
+          // This is a new record, add it to the insert batch
+          newRecordsToInsert.push(record);
+        }
       }
       
-      insertedCount = count || 0;
-      skippedCount = validRecords.length - insertedCount;
+      // Insert only new records
+      if (newRecordsToInsert.length > 0) {
+        const { data, error, count } = await supabase
+          .from('communications')
+          .insert(newRecordsToInsert)
+          .select();
+        
+        if (error) {
+          console.error('Error inserting communications:', error);
+          
+          // Update sync log to failed status
+          await supabase
+            .from('communication_sync_logs')
+            .update({
+              status: 'failed',
+              end_time: new Date().toISOString(),
+              error_message: `Error inserting communications: ${error.message}`
+            })
+            .eq('id', syncLogId);
+            
+          return new Response(
+            JSON.stringify({ error: 'Failed to insert communications', details: error.message }),
+            { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+          );
+        }
+        
+        insertedCount = count || 0;
+      }
     }
     
     // Process contact mappings - create mappings for any new phone numbers
