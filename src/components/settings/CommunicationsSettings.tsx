@@ -7,18 +7,19 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Phone, RefreshCw, Clock, AlertCircle, CheckCircle } from "lucide-react";
+import { Calendar, Upload, RefreshCw, Clock, AlertCircle, CheckCircle } from "lucide-react";
 import { format, formatDistanceToNow } from 'date-fns';
 import { useCommunications } from '@/hooks/use-communications';
 import { Separator } from '@/components/ui/separator';
 import { FileImport } from '@/components/settings/FileImport';
+import { ScheduledImport } from '@/components/settings/ScheduledImport';
 
 export function CommunicationsSettings() {
   const [autoSync, setAutoSync] = useState(true);
   const [syncFrequency, setSyncFrequency] = useState('daily');
   const [syncOnConnect, setSyncOnConnect] = useState(true);
   const [syncNotifications, setSyncNotifications] = useState(true);
-  const [activeTab, setActiveTab] = useState<'settings' | 'import'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'import' | 'scheduled'>('settings');
   
   const {
     syncLogs,
@@ -28,24 +29,31 @@ export function CommunicationsSettings() {
 
   return (
     <div className="space-y-6">
-      <div className="flex space-x-4 mb-4">
+      <div className="flex space-x-4 mb-4 overflow-x-auto pb-2">
         <Button
           variant={activeTab === 'settings' ? 'default' : 'outline'}
           onClick={() => setActiveTab('settings')}
         >
-          <Phone className="mr-2 h-4 w-4" />
+          <Clock className="mr-2 h-4 w-4" />
           Sync Settings
         </Button>
         <Button
           variant={activeTab === 'import' ? 'default' : 'outline'}
           onClick={() => setActiveTab('import')}
         >
+          <Upload className="mr-2 h-4 w-4" />
+          Manual Import
+        </Button>
+        <Button
+          variant={activeTab === 'scheduled' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('scheduled')}
+        >
           <Calendar className="mr-2 h-4 w-4" />
-          Import Data
+          Scheduled Import
         </Button>
       </div>
 
-      {activeTab === 'settings' ? (
+      {activeTab === 'settings' && (
         <>
           <Card>
             <CardHeader>
@@ -222,8 +230,14 @@ export function CommunicationsSettings() {
             </CardContent>
           </Card>
         </>
-      ) : (
+      )}
+      
+      {activeTab === 'import' && (
         <FileImport />
+      )}
+      
+      {activeTab === 'scheduled' && (
+        <ScheduledImport />
       )}
     </div>
   );

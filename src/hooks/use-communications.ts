@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -246,6 +245,110 @@ export function useCommunications() {
     }
   };
   
+  // Function to initiate a scheduled import manually
+  const runScheduledImport = async () => {
+    try {
+      // Make sure we have a user before proceeding
+      if (!user || !user.id) {
+        toast({
+          title: 'Authentication required',
+          description: 'You must be logged in to initiate a scheduled import',
+          variant: 'destructive',
+        });
+        return false;
+      }
+
+      // Call the scheduled import edge function
+      const { error, data } = await supabase.functions.invoke('process-scheduled-import', {
+        body: {
+          user_id: user.id,
+          run_now: true
+        }
+      });
+      
+      if (error) {
+        throw new Error(error.message || 'Failed to initiate scheduled import');
+      }
+      
+      toast({
+        title: 'Scheduled import initiated',
+        description: 'The scheduled import process has been started.',
+      });
+      
+      // Invalidate queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ['communication_sync_logs'] });
+      
+      return true;
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to initiate scheduled import',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+  
+  // Function to fetch user settings
+  const fetchUserSettings = async () => {
+    if (!user) return null;
+    
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('scheduled_import_settings')
+      .eq('user_id', user.id)
+      .single();
+      
+    if (error && error.code !== 'PGSQL_NO_ROWS_RETURNED') {
+      console.error("Error fetching user settings:", error);
+      throw error;
+    }
+    
+    return data || null;
+  };
+  
+  // Query for user settings
+  const userSettings = useQuery({
+    queryKey: ['user-settings'],
+    queryFn: fetchUserSettings,
+    enabled: !!user
+  });
+  
+  // Mutation to update user settings
+  const updateUserSettings = useMutation({
+    mutationFn: async (settings: any) => {
+      if (!user) throw new Error('User not authenticated');
+      
+      const { data, error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          ...settings
+        }, {
+          onConflict: 'user_id'
+        })
+        .select();
+        
+      if (error) throw error;
+      
+      return data[0];
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-settings'] });
+      toast({
+        title: 'Settings updated',
+        description: 'Your settings have been updated successfully',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update settings',
+        variant: 'destructive',
+      });
+    },
+  });
+  
   return {
     communications: communications.data || [],
     isLoadingCommunications: communications.isLoading,
@@ -273,5 +376,10 @@ export function useCommunications() {
     toggleImportance,
     updateContactMapping,
     initiateManualSync,
+    
+    userSettings: userSettings.data,
+    isLoadingUserSettings: userSettings.isLoading,
+    updateUserSettings,
+    runScheduledImport,
   };
 }
