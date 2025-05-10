@@ -60,13 +60,15 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
     
     try {
       // First get the organization ID for the current user
-      const { data: organizationData, error: orgError } = await supabase
+      const { data: orgMember, error: orgError } = await supabase
         .from('organization_members')
         .select('organization_id')
         .eq('user_id', user.id)
         .single();
       
       if (orgError) throw orgError;
+      
+      const organizationId = orgMember.organization_id;
       
       // Check if the user is already a member of the organization
       const { data: existingMember } = await supabase
@@ -79,7 +81,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         const { data: alreadyMember } = await supabase
           .from('organization_members')
           .select('*')
-          .eq('organization_id', organizationData.organization_id)
+          .eq('organization_id', organizationId)
           .eq('user_id', existingMember.id)
           .maybeSingle();
 
@@ -98,7 +100,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
       const { data: existingInvites, error: inviteCheckError } = await supabase.functions.invoke('check-team-invitation', {
         body: { 
           email: values.email,
-          organizationId: organizationData.organization_id
+          organizationId
         }
       });
       
@@ -122,7 +124,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         body: { 
           email: values.email,
           role: values.role,
-          organizationId: organizationData.organization_id,
+          organizationId,
           invitedBy: user.id,
           personalMessage: values.message || null
         }
