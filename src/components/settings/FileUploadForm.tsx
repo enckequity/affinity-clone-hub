@@ -5,18 +5,26 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Info, AlertCircle, FileType } from "lucide-react";
+import { Upload, Info, AlertCircle, FileType, Zap } from "lucide-react";
 import { FileUploadState } from "@/types/fileImport";
+import { Switch } from "@/components/ui/switch";
 
 interface FileUploadFormProps {
   state: FileUploadState;
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onUpload: () => void;
   onReset: () => void;
+  onToggleForceImport?: () => void;
 }
 
-export function FileUploadForm({ state, onFileChange, onUpload, onReset }: FileUploadFormProps) {
-  const { file, isUploading, uploadProgress, error, showConfirm, parsedData, fileFormat } = state;
+export function FileUploadForm({ 
+  state, 
+  onFileChange, 
+  onUpload, 
+  onReset,
+  onToggleForceImport 
+}: FileUploadFormProps) {
+  const { file, isUploading, uploadProgress, error, showConfirm, parsedData, fileFormat, forceImport } = state;
   
   return (
     <div className="space-y-4">
@@ -31,6 +39,23 @@ export function FileUploadForm({ state, onFileChange, onUpload, onReset }: FileU
         />
         <p className="text-xs text-muted-foreground mt-1">
           Upload your message history CSV file. We support standard CSV formats and iMessage exports.
+        </p>
+        
+        <div className="flex items-center space-x-2 mt-2">
+          <Switch
+            id="force-import"
+            checked={!!forceImport}
+            onCheckedChange={onToggleForceImport}
+            disabled={isUploading}
+          />
+          <Label htmlFor="force-import" className="cursor-pointer flex items-center">
+            <Zap className="h-4 w-4 mr-1 text-amber-500" />
+            Force Import Mode
+          </Label>
+        </div>
+        
+        <p className="text-xs text-muted-foreground">
+          Enable Force Import to bypass strict format checking and map common CSV headers automatically.
         </p>
       </div>
       
@@ -54,6 +79,12 @@ export function FileUploadForm({ state, onFileChange, onUpload, onReset }: FileU
               <div className="flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded">
                 <FileType className="h-3 w-3" />
                 <span>Detected format: {fileFormat === 'imazing' ? 'iMessage Export' : fileFormat === 'standard' ? 'Standard CSV' : 'Unknown'}</span>
+              </div>
+            )}
+            {forceImport && (
+              <div className="flex items-center gap-1 text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">
+                <Zap className="h-3 w-3" />
+                <span>Force Import Mode is enabled. Automatic header mapping will be applied.</span>
               </div>
             )}
           </AlertDescription>

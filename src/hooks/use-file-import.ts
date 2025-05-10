@@ -17,7 +17,8 @@ export const useFileImport = () => {
     error: null,
     parsedData: null,
     showConfirm: false,
-    fileFormat: 'unknown'
+    fileFormat: 'unknown',
+    forceImport: false
   });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,7 +53,7 @@ export const useFileImport = () => {
         description: "Analyzing your CSV file format...",
       });
       
-      const { data, fileFormat } = await parseFileContent(selectedFile);
+      const { data, fileFormat, skippedRecords } = await parseFileContent(selectedFile, state.forceImport);
       
       setState(prev => ({
         ...prev,
@@ -66,9 +67,14 @@ export const useFileImport = () => {
       if (fileFormat === 'imazing') formatName = 'iMessage Export';
       else if (fileFormat === 'standard') formatName = 'Standard CSV';
       
+      let toastMessage = `Detected format: ${formatName}. Found ${data.length} records.`;
+      if (skippedRecords.length > 0) {
+        toastMessage += ` (${skippedRecords.length} records skipped during parsing)`;
+      }
+      
       toast({
         title: "File parsed successfully",
-        description: `Detected format: ${formatName}. Found ${data.length} records.`,
+        description: toastMessage,
       });
     } catch (err: any) {
       console.error("Error parsing file:", err);
@@ -82,6 +88,18 @@ export const useFileImport = () => {
         description: err.message || "Failed to parse the CSV file.",
         variant: "destructive",
       });
+    }
+  };
+  
+  const toggleForceImport = () => {
+    setState(prev => ({
+      ...prev,
+      forceImport: !prev.forceImport
+    }));
+    
+    // If we already have a file selected, re-parse it with the new setting
+    if (state.file) {
+      handleFileChange({ target: { files: [state.file] } } as React.ChangeEvent<HTMLInputElement>);
     }
   };
   
@@ -109,6 +127,7 @@ export const useFileImport = () => {
       
       let totalProcessed = 0;
       let totalInserted = 0;
+      let totalSkipped = 0;
       let totalInvalid = 0;
       let invalidRecords: Array<{ record: any; reason: string }> = [];
       let syncId = '';
@@ -132,7 +151,9 @@ export const useFileImport = () => {
               // If not the first chunk, include the sync ID to append to the same import
               ...(i > 0 && { sync_id: syncId }),
               // Indicate if this is the last chunk
-              isLastChunk: isLastChunk
+              isLastChunk: isLastChunk,
+              // Add force import flag
+              forceImport: state.forceImport
             },
             headers: {
               Authorization: `Bearer ${session.access_token}`
@@ -156,13 +177,37 @@ export const useFileImport = () => {
           }
           
           // Accumulate results
-          totalProcessed += response.data.processed;
-          totalInserted += response.data.inserted;
-          totalInvalid += response.data.invalid;
-          invalidRecords = [...invalidRecords, ...response.data.invalidRecords];
+          totalProcessed += response.data.processed || 0;
+          totalInserted += response.data.inserted || 0;
+          totalSkipped += response.data.skipped || 0;
+          totalInvalid += response.data.invalid || 0;
+          
+          if (response.data.invalidRecords && response.data.invalidRecords.length > 0) {
+            invalidRecords = [...invalidRecords, ...response.data.invalidRecords];
+          }
+          
+          // If we got a partial success (207) status, log it but continue
+          if (response.data.status === 'partial_success') {
+            console.log(`Chunk ${i} had partial success. Some records were skipped or invalid.`);
+          }
         } catch (err: any) {
           console.error("Error response from edge function:", err);
-          throw new Error(err.message || "Failed to process data chunk");
+          
+          // Continue processing other chunks even if one fails
+          totalInvalid += chunk.length;
+          invalidRecords.push({
+            record: { chunk: `Chunk ${i}`, size: chunk.length },
+            reason: err.message || "Failed to process data chunk"
+          });
+          
+          toast({
+            title: "Warning: Partial failure",
+            description: `Chunk ${i+1} failed: ${err.message}. Continuing with remaining chunks...`,
+            variant: "destructive",
+          });
+          
+          // Don't abort the whole import for one chunk failure
+          continue;
         }
       }
       
@@ -172,15 +217,25 @@ export const useFileImport = () => {
         result: {
           processed: totalProcessed,
           inserted: totalInserted,
+          skipped: totalSkipped,
           invalid: totalInvalid,
           invalidRecords,
           sync_id: syncId
         }
       }));
       
+      // Customize message based on results
+      let resultMessage = `Successfully imported ${totalInserted} messages.`;
+      if (totalSkipped > 0) {
+        resultMessage += ` ${totalSkipped} duplicate records were skipped.`;
+      }
+      if (totalInvalid > 0) {
+        resultMessage += ` ${totalInvalid} invalid records were found.`;
+      }
+      
       toast({
         title: "Import successful",
-        description: `Successfully imported ${totalInserted} messages.`,
+        description: resultMessage,
       });
       
     } catch (err: any) {
@@ -213,7 +268,8 @@ export const useFileImport = () => {
       error: null,
       parsedData: null,
       showConfirm: false,
-      fileFormat: 'unknown'
+      fileFormat: 'unknown',
+      forceImport: false
     });
   };
 
@@ -221,6 +277,7 @@ export const useFileImport = () => {
     state,
     handleFileChange,
     handleUpload,
-    resetForm
+    resetForm,
+    toggleForceImport
   };
 };

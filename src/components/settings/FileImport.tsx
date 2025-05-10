@@ -6,7 +6,7 @@ import { ImportResultDisplay } from './ImportResultDisplay';
 import { useFileImport } from '@/hooks/use-file-import';
 
 export function FileImport() {
-  const { state, handleFileChange, handleUpload, resetForm } = useFileImport();
+  const { state, handleFileChange, handleUpload, resetForm, toggleForceImport } = useFileImport();
   
   return (
     <div className="space-y-8">
@@ -24,6 +24,7 @@ export function FileImport() {
               onFileChange={handleFileChange}
               onUpload={handleUpload}
               onReset={resetForm}
+              onToggleForceImport={toggleForceImport}
             />
           ) : (
             <ImportResultDisplay

@@ -19,6 +19,7 @@ interface Communication {
   content?: string;
   duration?: number;
   timestamp: string;
+  chat_session?: string;
 }
 
 // Basic validation function for payload
@@ -34,7 +35,7 @@ function validatePayload(payload: any): boolean {
 function validateCommunication(comm: any): boolean {
   if (!comm.type || !ALLOWED_TYPES.includes(comm.type)) return false;
   if (!comm.direction || !ALLOWED_DIRECTIONS.includes(comm.direction)) return false;
-  if (!comm.contact_phone) return false;
+  if (!comm.contact_phone && !comm.chat_session) return false; // Allow using chat_session as alternative
   if (!comm.timestamp) return false;
   
   // Call-specific validation
@@ -150,8 +151,8 @@ serve(async (req) => {
     if (comm.contact_phone) {
       comm.contact_phone = formatPhoneNumber(comm.contact_phone);
       
-      // If phone number is empty after formatting, set to 'unknown' to avoid validation failure
-      if (comm.contact_phone === '') {
+      // If phone number is empty after formatting, set it to use chat_session
+      if (comm.contact_phone === '' && comm.chat_session) {
         comm.contact_phone = 'unknown';
       }
     }
@@ -173,78 +174,111 @@ serve(async (req) => {
   
   console.log(`Processed ${payload.communications.length} records: ${validCommunications.length} valid, ${invalidCommunications.length} invalid`);
   
+  // Create a table for import errors if it doesn't exist
+  try {
+    // First check if table exists
+    const { data: tablesCheck } = await supabase
+      .rpc('check_table_exists', { table_name: 'import_errors' });
+    
+    if (!tablesCheck) {
+      console.log("Creating import_errors table");
+      await supabase.rpc('create_import_errors_table');
+    }
+  } catch (error) {
+    console.error("Error checking or creating import_errors table:", error);
+    // Continue even if table creation fails
+  }
+  
+  // Insert invalid records into import_errors table if available
+  if (invalidRecords.length > 0) {
+    try {
+      const { error: insertErrorsError } = await supabase
+        .from('import_errors')
+        .insert(invalidRecords.map(item => ({
+          user_id: payload.user_id,
+          import_id: syncLogId,
+          record_data: item.record,
+          reason: item.reason,
+          created_at: new Date().toISOString()
+        })));
+        
+      if (insertErrorsError) {
+        console.error("Failed to insert into import_errors table:", insertErrorsError);
+      } else {
+        console.log(`Saved ${invalidRecords.length} error records to import_errors table`);
+      }
+    } catch (error) {
+      console.error("Error inserting into import_errors table:", error);
+      // Continue processing even if error logging fails
+    }
+  }
+  
   // Insert valid communications into database with conflict handling
   let insertedCount = 0;
+  let skipCount = 0;
   if (validCommunications.length > 0) {
-    // Modified: Instead of using onConflict which requires unique constraints,
-    // we'll use a more reliable approach to insert records
+    // Modified: Use batch inserts with better error handling
+    const BATCH_SIZE = 100;
+    let successfulInserts = 0;
+    let failedInserts = 0;
     
-    // First, prepare the data for insertion
-    const communicationsToInsert = validCommunications.map((comm) => ({
-      user_id: payload.user_id,
-      type: comm.type,
-      direction: comm.direction,
-      contact_phone: comm.contact_phone,
-      contact_name: comm.contact_name,
-      content: comm.content,
-      duration: comm.duration,
-      timestamp: comm.timestamp,
-      import_id: syncLogId,
-    }));
-    
-    try {
-      // Insert communications without conflict handling
-      const { data, error } = await supabase
-        .from('communications')
-        .insert(communicationsToInsert);
+    // Process in batches to prevent timeout and improve error handling
+    for (let i = 0; i < validCommunications.length; i += BATCH_SIZE) {
+      const batch = validCommunications.slice(i, i + BATCH_SIZE);
       
-      if (error) {
-        console.error('Error inserting communications:', error);
+      try {
+        // Don't use onConflict here - we'll handle checking for duplicates in better ways
+        const { data, error, count } = await supabase
+          .from('communications')
+          .insert(batch.map(comm => ({
+            user_id: comm.user_id,
+            type: comm.type,
+            direction: comm.direction,
+            contact_phone: comm.contact_phone,
+            contact_name: comm.contact_name,
+            content: comm.content,
+            duration: comm.duration,
+            timestamp: comm.timestamp,
+            import_id: syncLogId,
+          })))
+          .select();
         
-        // Update sync log to failed status
-        await supabase
-          .from('communication_sync_logs')
-          .update({
-            status: 'failed',
-            end_time: new Date().toISOString(),
-            error_message: `Error inserting communications: ${error.message}`
-          })
-          .eq('id', syncLogId);
-          
-        return new Response(
-          JSON.stringify({ error: 'Failed to insert communications', details: error.message }),
-          { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-        );
+        if (error) {
+          // Check if the error is due to unique constraint violation
+          if (error.code === '23505') {
+            console.log(`Batch ${i} had duplicate entries that were skipped`);
+            skipCount += batch.length; // Approximate for now
+          } else {
+            console.error(`Error inserting batch ${i}:`, error);
+            failedInserts += batch.length;
+            
+            // Log the failed batch to import_errors table
+            try {
+              await supabase
+                .from('import_errors')
+                .insert(batch.map(record => ({
+                  user_id: payload.user_id,
+                  import_id: syncLogId,
+                  record_data: record,
+                  reason: `Batch insert error: ${error.message || "Unknown error"}`,
+                  created_at: new Date().toISOString()
+                })));
+            } catch (logError) {
+              console.error("Failed to log batch errors:", logError);
+            }
+          }
+        } else {
+          successfulInserts += (data?.length || batch.length);
+          console.log(`Successfully inserted batch ${i} with ${data?.length || batch.length} records`);
+        }
+      } catch (error: any) {
+        console.error(`Unexpected error during batch ${i}:`, error);
+        failedInserts += batch.length;
       }
-      
-      processedCount = validCommunications.length;
-      
-      // Count actual inserts by checking the response
-      const { count } = await supabase
-        .from('communications')
-        .select('id', { count: 'exact' })
-        .eq('import_id', syncLogId);
-        
-      insertedCount = count || 0;
-      console.log(`Successfully inserted ${insertedCount} communications`);
-    } catch (error: any) {
-      console.error('Unexpected error during communications insert:', error);
-      
-      // Update sync log to failed status
-      await supabase
-        .from('communication_sync_logs')
-        .update({
-          status: 'failed',
-          end_time: new Date().toISOString(),
-          error_message: `Unexpected error during insert: ${error.message || 'Unknown error'}`
-        })
-        .eq('id', syncLogId);
-        
-      return new Response(
-        JSON.stringify({ error: 'Failed to process communications', details: error.message || 'Unknown error' }),
-        { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-      );
     }
+    
+    insertedCount = successfulInserts;
+    console.log(`Import summary: ${successfulInserts} inserted, ${skipCount} skipped, ${failedInserts} failed`);
   }
   
   // Check if this is the last chunk for this sync ID
@@ -258,20 +292,24 @@ serve(async (req) => {
       .update({
         status: 'completed',
         end_time: new Date().toISOString(),
-        records_synced: processedCount
+        records_synced: insertedCount
       })
       .eq('id', syncLogId);
     
     if (updateError) {
       console.error('Error updating sync log:', updateError);
     } else {
-      console.log(`Marked sync log ${syncLogId} as completed with ${processedCount} records`);
+      console.log(`Marked sync log ${syncLogId} as completed with ${insertedCount} records`);
     }
     
     // Process contact mappings - create mappings for any new phone numbers
-    const phoneNumbers = [...new Set(validCommunications.map(comm => comm.contact_phone))];
+    const phoneNumbers = [...new Set(validCommunications.map(comm => comm.contact_phone).filter(p => p !== 'unknown'))];
+    const chatSessions = [...new Set(validCommunications.map(comm => comm.chat_session).filter(Boolean))];
     
-    if (phoneNumbers.length > 0) {
+    // Unique contact identifiers from both phone numbers and chat sessions
+    const contactIdentifiers = new Set([...phoneNumbers, ...chatSessions]);
+    
+    if (contactIdentifiers.size > 0) {
       // Get existing mappings
       const { data: existingMappings } = await supabase
         .from('phone_contact_mappings')
@@ -282,22 +320,22 @@ serve(async (req) => {
         ? existingMappings.map(mapping => mapping.phone_number) 
         : [];
         
-      // Filter out phone numbers that already have mappings
-      const newPhoneNumbers = phoneNumbers.filter(
-        number => !existingPhoneNumbers.includes(number)
+      // Filter out identifiers that already have mappings
+      const newIdentifiers = Array.from(contactIdentifiers).filter(
+        identifier => !existingPhoneNumbers.includes(identifier)
       );
       
-      // Create mappings for new phone numbers
-      if (newPhoneNumbers.length > 0) {
-        const newMappings = newPhoneNumbers.map(phoneNumber => {
-          // Find a communication with this phone number to get the contact name
+      // Create mappings for new identifiers
+      if (newIdentifiers.length > 0) {
+        const newMappings = newIdentifiers.map(identifier => {
+          // Find a communication with this identifier to get the contact name
           const communication = validCommunications.find(
-            comm => comm.contact_phone === phoneNumber
+            comm => comm.contact_phone === identifier || comm.chat_session === identifier
           );
           
           return {
             user_id: payload.user_id,
-            phone_number: phoneNumber,
+            phone_number: identifier,
             contact_name: communication?.contact_name || null
           };
         });
@@ -331,18 +369,24 @@ serve(async (req) => {
     console.log(`This is not the last chunk for sync ${syncLogId}, keeping status as in_progress`);
   }
   
-  // Return success response
+  // Calculate status code based on results
+  // Use 200 if everything succeeded, 207 (Multi-Status) if some failed but others succeeded
+  const statusCode = invalidRecords.length > 0 ? 207 : 200;
+  
+  // Return appropriate response
   return new Response(
     JSON.stringify({
       success: true,
-      processed: processedCount,
+      processed: validCommunications.length + invalidCommunications.length,
       inserted: insertedCount,
+      skipped: skipCount,
       invalid: invalidCommunications.length,
       invalidRecords,
-      sync_id: syncLogId
+      sync_id: syncLogId,
+      status: statusCode === 200 ? 'success' : 'partial_success'
     }),
     { 
-      status: 200, 
+      status: statusCode, 
       headers: { 'Content-Type': 'application/json', ...corsHeaders } 
     }
   );
