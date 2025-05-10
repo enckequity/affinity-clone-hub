@@ -40,3 +40,22 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Add custom styles for navigation buttons */
+.nav-button {
+  transition: background-color 0.2s, color 0.2s;
+  width: 100%;
+}
+
+.nav-button-collapsed {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ensure consistent hover styles */
+.nav-button:hover {
+  background-color: var(--accent);
+}

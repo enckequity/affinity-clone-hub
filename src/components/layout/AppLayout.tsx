@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Outlet } from 'react-router-dom';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -27,18 +27,28 @@ export function AppLayout() {
   const [isAISearchOpen, setIsAISearchOpen] = useState(false);
   const [isVoiceNotesOpen, setIsVoiceNotesOpen] = useState(false);
   
+  // Handle responsive sidebar state
+  useEffect(() => {
+    setSidebarOpen(!isMobile);
+  }, [isMobile]);
+  
   return (
     <SidebarProvider defaultOpen={!isMobile}>
-      <div className="min-h-screen flex w-full">
-        <AppNav isSidebarCollapsed={!sidebarOpen} />
+      <div className="min-h-screen flex w-full overflow-hidden">
+        <div className={cn(
+          "transition-all duration-300 bg-sidebar flex-shrink-0",
+          sidebarOpen ? "w-[200px]" : "w-[60px]"
+        )}>
+          <AppNav isSidebarCollapsed={!sidebarOpen} />
+        </div>
         
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col overflow-hidden">
           <header className="bg-white border-b border-border h-16 flex items-center px-4 justify-between">
             <div className="flex items-center gap-2">
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="md:hidden"
+                className="flex md:hidden"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
               >
                 <Menu className="h-5 w-5" />
@@ -90,3 +100,5 @@ export function AppLayout() {
     </SidebarProvider>
   );
 }
+
+import { cn } from "@/lib/utils";

@@ -72,30 +72,33 @@ export const AppNav = ({ isSidebarCollapsed }: AppNavProps) => {
   ];
   
   return (
-    <nav className="space-y-2 px-2 py-5 mt-2">
-      {navItems.map((item) => (
-        <NavLink to={item.href} key={item.href}>
-          {({ isActive }) => (
-            <Button
-              variant="ghost"
-              size={isSidebarCollapsed ? "icon" : "default"}
-              className={cn(
-                "w-fit min-w-[40px] justify-start",
-                isActive
-                  ? "bg-muted text-primary"
-                  : "text-muted-foreground hover:text-foreground",
-                isSidebarCollapsed && "justify-center px-2",
-                !isSidebarCollapsed && !isMobile && "pr-2"
-              )}
-            >
-              <item.icon
-                className={cn("h-5 w-5", !isSidebarCollapsed && "mr-2")}
-              />
-              {!isSidebarCollapsed && !isMobile && <span className="whitespace-nowrap">{item.title}</span>}
-            </Button>
-          )}
-        </NavLink>
-      ))}
+    <nav className="py-5 mt-2">
+      <div className="flex flex-col items-start gap-2">
+        {navItems.map((item) => (
+          <NavLink to={item.href} key={item.href} className="w-full">
+            {({ isActive }) => (
+              <Button
+                variant="ghost"
+                size={isSidebarCollapsed ? "icon" : "default"}
+                className={cn(
+                  "w-full h-10",
+                  isActive
+                    ? "bg-muted text-primary"
+                    : "text-muted-foreground hover:text-foreground",
+                  isSidebarCollapsed 
+                    ? "p-0 flex justify-center items-center" 
+                    : "justify-start px-3"
+                )}
+              >
+                <item.icon className="h-5 w-5 flex-shrink-0" />
+                {!isSidebarCollapsed && !isMobile && (
+                  <span className="ml-2 truncate">{item.title}</span>
+                )}
+              </Button>
+            )}
+          </NavLink>
+        ))}
+      </div>
     </nav>
   );
 };
