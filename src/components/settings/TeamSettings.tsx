@@ -36,37 +36,17 @@ export function TeamSettings() {
         return [];
       }
 
-      // Get members using a direct join query
-      const { data, error } = await supabase
-        .from('organization_members')
-        .select(`
-          user_id,
-          role,
-          profiles:user_id(
-            first_name,
-            last_name,
-            avatar_url
-          ),
-          users:user_id(
-            email
-          )
-        `)
-        .eq('organization_id', organizationData.organization_id);
+      // Use the edge function to get members
+      const { data, error } = await supabase.functions.invoke('get-team-members', {
+        body: { organizationId: organizationData.organization_id }
+      });
 
       if (error) {
         console.error('Error fetching team members:', error);
         return [];
       }
 
-      return data.map((member: any) => ({
-        id: member.user_id,
-        email: member.users?.email,
-        first_name: member.profiles?.first_name,
-        last_name: member.profiles?.last_name,
-        avatar_url: member.profiles?.avatar_url,
-        role: member.role,
-        status: 'active' as const
-      })) as TeamMember[];
+      return data as TeamMember[];
     },
     enabled: !!user
   });
@@ -88,11 +68,10 @@ export function TeamSettings() {
         return [];
       }
 
-      // Get invitations using standard query
-      const { data, error } = await supabase
-        .from('team_invitations')
-        .select('*')
-        .eq('organization_id', organizationData.organization_id);
+      // Use the edge function to get invitations
+      const { data, error } = await supabase.functions.invoke('get-team-invitations', {
+        body: { organizationId: organizationData.organization_id }
+      });
 
       if (error) {
         console.error('Error fetching team invitations:', error);
@@ -106,10 +85,9 @@ export function TeamSettings() {
 
   const handleDelete = async (invitationId: string) => {
     try {
-      const { error } = await supabase
-        .from('team_invitations')
-        .delete()
-        .eq('id', invitationId);
+      const { data, error } = await supabase.functions.invoke('delete-team-invitation', {
+        body: { invitationId }
+      });
       
       if (error) throw error;
       

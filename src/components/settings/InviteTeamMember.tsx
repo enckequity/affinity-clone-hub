@@ -94,17 +94,18 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         }
       }
       
-      // Check if there's already a pending invitation for this email
-      const { data: existingInvite, error: inviteCheckError } = await supabase
-        .from('team_invitations')
-        .select('*')
-        .eq('email', values.email)
-        .eq('organization_id', organizationData.organization_id)
-        .in('status', ['pending', 'sent']);
-        
+      // Check if there's already a pending invitation for this email using a manual query
+      // since the team_invitations table isn't in the TypeScript type definitions
+      const { data: existingInvites, error: inviteCheckError } = await supabase.functions.invoke('check-team-invitation', {
+        body: { 
+          email: values.email,
+          organizationId: organizationData.organization_id
+        }
+      });
+      
       if (inviteCheckError) {
         console.error("Error checking invitation:", inviteCheckError);
-      } else if (existingInvite && existingInvite.length > 0) {
+      } else if (existingInvites && existingInvites.length > 0) {
         toast({
           title: "Invitation already sent",
           description: "There is already a pending invitation for this email address.",
@@ -114,20 +115,17 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         return;
       }
       
-      // Create the invitation
-      const { data: invitation, error: invitationError } = await supabase
-        .from('team_invitations')
-        .insert({
+      // Create the invitation via edge function
+      const { data: invitation, error: invitationError } = await supabase.functions.invoke('create-team-invitation', {
+        body: { 
           email: values.email,
           role: values.role,
-          organization_id: organizationData.organization_id,
-          invited_by: user.id,
-          personal_message: values.message || null,
-          status: 'sent'
-        })
-        .select('*')
-        .single();
-        
+          organizationId: organizationData.organization_id,
+          invitedBy: user.id,
+          personalMessage: values.message || null
+        }
+      });
+      
       if (invitationError) throw invitationError;
 
       // Send the invitation email via edge function
