@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   Dialog,
@@ -25,6 +26,77 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2 } from "lucide-react";
 import { TeamInvitation } from '@/types/teamTypes';
+
+// Define explicit, flat types to stop the "excessively deep" recursion
+interface OrgMemberResult {
+  data: { organization_id: string } | null;
+  error: Error | null;
+}
+
+interface ProfileResult {
+  data: { id: string } | null;
+  error: Error | null;
+}
+
+interface OrgMemberCheckResult {
+  data: Record<string, any> | null;
+  error: Error | null;
+}
+
+// Helper functions to simplify the main component code
+async function checkExistingInvite(
+  email: string,
+  organizationId: string
+) {
+  const { data, error } = await supabase.functions.invoke('check-team-invitation', {
+    body: { 
+      email,
+      organizationId
+    }
+  });
+  
+  if (error) throw error;
+  return data;
+}
+
+async function createInvitation(
+  email: string,
+  role: string,
+  organizationId: string,
+  invitedBy: string,
+  personalMessage: string | null
+) {
+  const { data, error } = await supabase.functions.invoke('create-team-invitation', {
+    body: { 
+      email,
+      role,
+      organizationId,
+      invitedBy,
+      personalMessage
+    }
+  });
+  
+  if (error) throw error;
+  return data;
+}
+
+async function sendInvitationEmail(
+  invitationId: string,
+  email: string,
+  role: string,
+  message?: string
+) {
+  const { error } = await supabase.functions.invoke('send-team-invitation', {
+    body: { 
+      invitationId,
+      email,
+      role,
+      message 
+    }
+  });
+  
+  if (error) throw error;
+}
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -59,11 +131,6 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
     
     try {
       // First get the organization ID for the current user with explicit typing
-      interface OrgMemberResult {
-        data: { organization_id: string } | null;
-        error: Error | null;
-      }
-      
       const orgResult = await supabase
         .from('organization_members')
         .select('organization_id')
@@ -76,11 +143,6 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
       const organizationId = orgResult.data.organization_id;
       
       // Check if the user is already a member of the organization
-      interface ProfileResult {
-        data: { id: string } | null;
-        error: Error | null;
-      }
-      
       const existingMemberResult = await supabase
         .from('profiles')
         .select('id')
@@ -88,11 +150,6 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         .maybeSingle() as unknown as ProfileResult;
 
       if (existingMemberResult.data) {
-        interface OrgMemberCheckResult {
-          data: Record<string, any> | null;
-          error: Error | null;
-        }
-        
         const alreadyMemberResult = await supabase
           .from('organization_members')
           .select()
@@ -112,24 +169,9 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
       }
       
       // Check if there's already a pending invitation for this email
-      interface InviteCheckResponse {
-        data: any[] | null;
-        error: Error | null;
-      }
+      const existingInvites = await checkExistingInvite(values.email, organizationId);
       
-      const { data: existingInvites, error: inviteCheckError } = await supabase.functions.invoke<InviteCheckResponse>('check-team-invitation', {
-        body: { 
-          email: values.email,
-          organizationId
-        }
-      });
-      
-      if (inviteCheckError) {
-        console.error("Error checking invitation:", inviteCheckError);
-        throw inviteCheckError;
-      } 
-      
-      if (existingInvites && existingInvites.length > 0) {
+      if (existingInvites && Array.isArray(existingInvites) && existingInvites.length > 0) {
         toast({
           title: "Invitation already sent",
           description: "There is already a pending invitation for this email address.",
@@ -140,40 +182,23 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
       }
       
       // Create the invitation via edge function
-      interface InvitationResponse {
-        data: { id: string } | null;
-        error: Error | null;
-      }
+      const invitationData = await createInvitation(
+        values.email,
+        values.role,
+        organizationId,
+        user.id,
+        values.message || null
+      );
       
-      const { data: invitationData, error: invitationError } = await supabase.functions.invoke<InvitationResponse>('create-team-invitation', {
-        body: { 
-          email: values.email,
-          role: values.role,
-          organizationId,
-          invitedBy: user.id,
-          personalMessage: values.message || null
-        }
-      });
-      
-      if (invitationError) throw invitationError;
-      if (!invitationData?.id) throw new Error('Failed to create invitation');
+      if (!invitationData || !invitationData.id) throw new Error('Failed to create invitation');
 
       // Send the invitation email via edge function
-      interface EmailResponse {
-        data: any;
-        error: Error | null;
-      }
-      
-      const { error: emailError } = await supabase.functions.invoke<EmailResponse>('send-team-invitation', {
-        body: { 
-          invitationId: invitationData.id,
-          email: values.email,
-          role: values.role,
-          message: values.message 
-        }
-      });
-      
-      if (emailError) throw emailError;
+      await sendInvitationEmail(
+        invitationData.id,
+        values.email,
+        values.role,
+        values.message
+      );
       
       toast({
         title: "Invitation sent",
