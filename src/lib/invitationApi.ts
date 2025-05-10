@@ -2,6 +2,10 @@
 import { supabase } from '@/integrations/supabase/client';
 import { InviteCheckResponse, InvitationResponse } from '@/types/invitationTypes';
 
+// Define response types for type casting
+type SingleRowResponse<T> = { data: T | null; error: Error | null };
+type MultiRowResponse<T> = { data: T[] | null; error: Error | null };
+
 /**
  * Check if an invitation already exists for the given email and organization
  */
@@ -73,7 +77,7 @@ export async function getUserOrganizationId(userId: string): Promise<string> {
     .from('organization_members')
     .select('organization_id')
     .eq('user_id', userId)
-    .single() as unknown as { data: { organization_id: string } | null, error: Error | null };
+    .single() as unknown as SingleRowResponse<{ organization_id: string }>;
 
   if (result.error) throw result.error;
   if (!result.data) throw new Error('No organization found');
@@ -90,7 +94,7 @@ export async function checkIfUserIsMember(email: string, organizationId: string)
     .from('profiles')
     .select('id')
     .eq('email', email)
-    .maybeSingle() as unknown as { data: { id: string } | null, error: Error | null };
+    .maybeSingle() as unknown as SingleRowResponse<{ id: string }>;
 
   if (userResult.error) throw userResult.error;
   if (!userResult.data) return false; // User doesn't exist
@@ -101,7 +105,7 @@ export async function checkIfUserIsMember(email: string, organizationId: string)
     .select()
     .eq('organization_id', organizationId)
     .eq('user_id', userResult.data.id)
-    .maybeSingle() as unknown as { data: Record<string, any> | null, error: Error | null };
+    .maybeSingle() as unknown as SingleRowResponse<Record<string, any>>;
 
   if (memberResult.error) throw memberResult.error;
   
