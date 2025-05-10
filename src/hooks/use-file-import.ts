@@ -47,6 +47,11 @@ export const useFileImport = () => {
     
     // Parse the file
     try {
+      toast({
+        title: "Processing file",
+        description: "Analyzing your CSV file format...",
+      });
+      
       const { data, fileFormat } = await parseFileContent(selectedFile);
       
       setState(prev => ({
@@ -56,10 +61,14 @@ export const useFileImport = () => {
         fileFormat
       }));
       
-      // Show toast with the detected format
+      // Show toast with the detected format and record count
+      let formatName = 'Unknown';
+      if (fileFormat === 'imazing') formatName = 'iMessage Export';
+      else if (fileFormat === 'standard') formatName = 'Standard CSV';
+      
       toast({
         title: "File parsed successfully",
-        description: `Detected format: ${fileFormat === 'imazing' ? 'iMessage Export' : fileFormat === 'standard' ? 'Standard CSV' : 'Unknown'}`,
+        description: `Detected format: ${formatName}. Found ${data.length} records.`,
       });
     } catch (err: any) {
       console.error("Error parsing file:", err);
@@ -67,6 +76,12 @@ export const useFileImport = () => {
         ...prev,
         error: `Failed to parse file: ${err.message}`
       }));
+      
+      toast({
+        title: "Error parsing file",
+        description: err.message || "Failed to parse the CSV file.",
+        variant: "destructive",
+      });
     }
   };
   
@@ -98,19 +113,26 @@ export const useFileImport = () => {
       let invalidRecords: Array<{ record: any; reason: string }> = [];
       let syncId = '';
       
+      toast({
+        title: "Import started",
+        description: `Processing ${state.parsedData.length} records in ${chunks.length} chunks...`,
+      });
+      
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
+        const isLastChunk = i === chunks.length - 1;
         
         try {
           // Call the edge function to process the chunk
-          // IMPORTANT: Changed 'import' to 'manual' to comply with database constraints
           const response = await supabase.functions.invoke('process-communications-import', {
             body: {
               communications: chunk,
               sync_type: 'manual',
               user_id: session.user.id,
               // If not the first chunk, include the sync ID to append to the same import
-              ...(i > 0 && { sync_id: syncId })
+              ...(i > 0 && { sync_id: syncId }),
+              // Indicate if this is the last chunk
+              isLastChunk: isLastChunk
             },
             headers: {
               Authorization: `Bearer ${session.access_token}`

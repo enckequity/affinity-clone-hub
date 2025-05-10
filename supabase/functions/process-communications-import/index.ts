@@ -74,6 +74,7 @@ serve(async (req) => {
   let payload;
   try {
     payload = await req.json();
+    console.log("Received payload with:", payload.communications?.length, "communication records");
   } catch (error) {
     return new Response(
       JSON.stringify({ error: 'Invalid JSON body' }),
@@ -113,6 +114,7 @@ serve(async (req) => {
   
   // Create a sync log entry if one doesn't exist
   if (!syncLogId) {
+    console.log("Creating new sync log with type:", syncType);
     const { data: syncLog, error: syncLogError } = await supabase
       .from('communication_sync_logs')
       .insert({
@@ -132,6 +134,9 @@ serve(async (req) => {
     }
     
     syncLogId = syncLog.id;
+    console.log("Created new sync log with ID:", syncLogId);
+  } else {
+    console.log("Using existing sync log with ID:", syncLogId);
   }
   
   // Process and validate communications
@@ -144,6 +149,11 @@ serve(async (req) => {
     // Format phone numbers to a consistent format for matching
     if (comm.contact_phone) {
       comm.contact_phone = formatPhoneNumber(comm.contact_phone);
+      
+      // If phone number is empty after formatting, set to 'unknown' to avoid validation failure
+      if (comm.contact_phone === '') {
+        comm.contact_phone = 'unknown';
+      }
     }
     
     if (validateCommunication(comm)) {
@@ -160,6 +170,8 @@ serve(async (req) => {
       });
     }
   }
+  
+  console.log(`Processed ${payload.communications.length} records: ${validCommunications.length} valid, ${invalidCommunications.length} invalid`);
   
   // Insert valid communications into database with conflict handling
   let insertedCount = 0;
@@ -214,7 +226,8 @@ serve(async (req) => {
         .eq('import_id', syncLogId);
         
       insertedCount = count || 0;
-    } catch (error) {
+      console.log(`Successfully inserted ${insertedCount} communications`);
+    } catch (error: any) {
       console.error('Unexpected error during communications insert:', error);
       
       // Update sync log to failed status
@@ -251,6 +264,8 @@ serve(async (req) => {
     
     if (updateError) {
       console.error('Error updating sync log:', updateError);
+    } else {
+      console.log(`Marked sync log ${syncLogId} as completed with ${processedCount} records`);
     }
     
     // Process contact mappings - create mappings for any new phone numbers
@@ -287,14 +302,20 @@ serve(async (req) => {
           };
         });
         
-        await supabase
+        const { error: mappingError } = await supabase
           .from('phone_contact_mappings')
           .insert(newMappings);
+          
+        if (mappingError) {
+          console.error("Error creating phone contact mappings:", mappingError);
+        } else {
+          console.log(`Created ${newMappings.length} new phone contact mappings`);
+        }
       }
     }
     
     // Update user's last_import_date in user_settings
-    await supabase
+    const { error: settingsError } = await supabase
       .from('user_settings')
       .upsert({
         user_id: payload.user_id,
@@ -302,6 +323,12 @@ serve(async (req) => {
       }, {
         onConflict: 'user_id'
       });
+      
+    if (settingsError) {
+      console.error("Error updating user_settings:", settingsError);
+    }
+  } else {
+    console.log(`This is not the last chunk for sync ${syncLogId}, keeping status as in_progress`);
   }
   
   // Return success response
@@ -320,4 +347,3 @@ serve(async (req) => {
     }
   );
 });
-

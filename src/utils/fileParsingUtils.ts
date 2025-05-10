@@ -1,4 +1,3 @@
-
 import { CommunicationRecord } from "@/types/fileImport";
 
 export type FileFormat = 'standard' | 'imazing' | 'unknown';
@@ -13,10 +12,15 @@ export const detectFileFormat = (headers: string[]): FileFormat => {
                           (normalizedHeaders.includes('timestamp') || normalizedHeaders.includes('date')) &&
                           (normalizedHeaders.includes('text') || normalizedHeaders.includes('message') || normalizedHeaders.includes('content'));
   
-  // Detect iMessage format
-  const isIMessageFormat = (normalizedHeaders.includes('sender id') || normalizedHeaders.includes('senderid')) && 
-                          (normalizedHeaders.includes('message date') || normalizedHeaders.includes('date')) &&
-                          (normalizedHeaders.includes('text') || normalizedHeaders.includes('message'));
+  // Detect iMessage format (improved to match the user's sample)
+  const isIMessageFormat = (
+    (normalizedHeaders.includes('sender id') || normalizedHeaders.includes('senderid')) && 
+    (normalizedHeaders.includes('message date') || normalizedHeaders.includes('date')) &&
+    (normalizedHeaders.includes('text') || normalizedHeaders.includes('message')) &&
+    (normalizedHeaders.includes('type') || normalizedHeaders.includes('service')) ||
+    // Additional indicators specific to iMessage exports
+    (normalizedHeaders.includes('chat session') && normalizedHeaders.includes('service'))
+  );
   
   if (isIMessageFormat) {
     return 'imazing';
@@ -37,7 +41,7 @@ export const parseCSV = (csvContent: string): any[] => {
   return lines.slice(1).map(line => {
     if (!line.trim()) return null; // Skip empty lines
     
-    // Handle quoted values properly (simple implementation)
+    // Handle quoted values properly (improved implementation)
     const values: string[] = [];
     let inQuotes = false;
     let currentValue = '';
@@ -80,13 +84,13 @@ export const parseCSV = (csvContent: string): any[] => {
 // Convert CSV record to our standardized communication format
 export const standardizeCommunication = (record: Record<string, string>, fileFormat: FileFormat): CommunicationRecord => {
   if (fileFormat === 'imazing') {
-    // iMessage format mapping
+    // iMessage format mapping - enhanced for the user's specific format
     const senderIdField = Object.keys(record).find(k => 
       ['sender id', 'senderid', 'sender', 'from'].includes(k.toLowerCase())
     ) || '';
     
-    const recipientIdField = Object.keys(record).find(k => 
-      ['recipient id', 'recipientid', 'recipient', 'to'].includes(k.toLowerCase())
+    const typefield = Object.keys(record).find(k => 
+      ['type', 'message type', 'messagetype'].includes(k.toLowerCase())
     ) || '';
     
     const senderNameField = Object.keys(record).find(k => 
@@ -105,24 +109,50 @@ export const standardizeCommunication = (record: Record<string, string>, fileFor
       ['service', 'platform', 'type'].includes(k.toLowerCase())
     ) || '';
     
-    // Determine direction based on service or other fields
+    const chatSessionField = Object.keys(record).find(k =>
+      ['chat session', 'chat', 'session'].includes(k.toLowerCase())
+    ) || '';
+    
+    // Determine direction based on type field directly
     let direction = 'unknown';
     let phoneNumber = '';
     
     // Try to determine the direction
-    if (record[serviceField]?.toLowerCase()?.includes('imessage')) {
-      // For iMessage, we need to determine from the sender and recipient
-      const myAppleId = record[recipientIdField] || '';
-      const contactId = record[senderIdField] || '';
-      
-      // If sender ID is not my Apple ID, it's incoming from a contact
-      if (contactId && contactId !== myAppleId) {
+    if (record[typefield] && typeof record[typefield] === 'string') {
+      const typeValue = record[typefield].toLowerCase();
+      if (typeValue.includes('incoming')) {
         direction = 'incoming';
-        phoneNumber = contactId;
-      } else {
+      } else if (typeValue.includes('outgoing')) {
         direction = 'outgoing';
-        phoneNumber = record[recipientIdField] || '';
+      } else if (typeValue.includes('missed')) {
+        direction = 'missed';
       }
+    }
+    
+    // If direction is still unknown, try using service field
+    if (direction === 'unknown' && record[serviceField]?.toLowerCase()?.includes('imessage')) {
+      // For iMessage, we need to determine from the sender and recipient
+      const myAppleId = record[senderIdField] || '';
+      
+      // If sender ID exists and contains '+', it's likely a phone number
+      if (record[senderIdField] && record[senderIdField].includes('+')) {
+        direction = 'incoming';
+        phoneNumber = record[senderIdField];
+      } else if (record[chatSessionField]) {
+        // Use chat session as a fallback for contact information
+        // Often chat session contains the contact name or number
+        phoneNumber = record[senderIdField] || record[chatSessionField];
+      }
+    }
+    
+    // Set phone number from sender ID if it's a valid phone number format
+    if (!phoneNumber && record[senderIdField]) {
+      phoneNumber = record[senderIdField];
+    }
+    
+    // Use chat session as a fallback for phone number
+    if (!phoneNumber && record[chatSessionField]) {
+      phoneNumber = record[chatSessionField];
     }
     
     // Try to parse iMessage date format
@@ -140,9 +170,12 @@ export const standardizeCommunication = (record: Record<string, string>, fileFor
       }
     }
     
+    // Get contact name from the sender name field or chat session
+    const contactName = record[senderNameField] || record[chatSessionField] || '';
+    
     return {
       contact_phone: phoneNumber,
-      contact_name: record[senderNameField] || '',
+      contact_name: contactName,
       direction: direction,
       type: 'text', // Assuming all are text messages
       content: record[textField] || '',
@@ -229,19 +262,28 @@ export const parseFileContent = async (file: File): Promise<{
         const headers = lines[0].split(',').map(h => h.trim());
         const fileFormat = detectFileFormat(headers);
         
+        console.log("CSV Headers:", headers);
+        console.log("File format detected:", fileFormat);
+        
         // Parse CSV
         const parsedRecords = parseCSV(csv);
         
-        console.log("File format detected:", fileFormat);
+        if (parsedRecords.length === 0) {
+          reject(new Error("No records found in the CSV file"));
+          return;
+        }
+        
         console.log("Sample record:", parsedRecords[0]);
         
         // Convert to standardized format
         const standardizedData = parsedRecords.map(record => standardizeCommunication(record, fileFormat));
         
+        console.log("Sample standardized record:", standardizedData[0]);
+        
         // Filter out records with missing required fields
         const validData = standardizedData.filter(record => 
-          record.contact_phone !== 'unknown' && 
-          record.timestamp !== 'unknown'
+          record.timestamp !== 'unknown' && 
+          (record.direction !== 'unknown' || record.contact_phone !== 'unknown')
         );
         
         if (!validData || validData.length === 0) {
@@ -249,8 +291,12 @@ export const parseFileContent = async (file: File): Promise<{
           return;
         }
         
+        // Log some stats for debugging
+        console.log(`Found ${parsedRecords.length} records, ${validData.length} valid after conversion`);
+        
         resolve({ data: validData, fileFormat });
       } catch (err: any) {
+        console.error("Error parsing file:", err);
         reject(err);
       }
     };
