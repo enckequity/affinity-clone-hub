@@ -104,41 +104,46 @@ export function FileImport() {
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         
-        // Call the edge function to process the chunk
-        const response = await supabase.functions.invoke('process-communications-import', {
-          body: {
-            communications: chunk,
-            sync_type: 'import',
-            user_id: session.user.id,
-            // If not the first chunk, include the sync ID to append to the same import
-            ...(i > 0 && { sync_id: syncId })
-          },
-          headers: {
-            Authorization: `Bearer ${session.access_token}`
+        try {
+          // Call the edge function to process the chunk
+          const response = await supabase.functions.invoke('process-communications-import', {
+            body: {
+              communications: chunk,
+              sync_type: 'import',
+              user_id: session.user.id,
+              // If not the first chunk, include the sync ID to append to the same import
+              ...(i > 0 && { sync_id: syncId })
+            },
+            headers: {
+              Authorization: `Bearer ${session.access_token}`
+            }
+          });
+          
+          if (response.error) {
+            console.error("Error response from edge function:", response.error);
+            throw new Error(response.error.message || "Failed to process data");
           }
-        });
-        
-        if (response.error) {
-          console.error("Error response from edge function:", response.error);
-          throw new Error(response.error.message || "Failed to process data");
+          
+          // Update progress based on chunks processed
+          setState(prev => ({ 
+            ...prev, 
+            uploadProgress: 30 + Math.round(60 * (i + 1) / chunks.length)
+          }));
+          
+          // Store the sync ID from the first chunk for subsequent chunks
+          if (i === 0) {
+            syncId = response.data.sync_id;
+          }
+          
+          // Accumulate results
+          totalProcessed += response.data.processed;
+          totalInserted += response.data.inserted;
+          totalInvalid += response.data.invalid;
+          invalidRecords = [...invalidRecords, ...response.data.invalidRecords];
+        } catch (err: any) {
+          console.error("Error response from edge function:", err);
+          throw new Error(err.message || "Failed to process data chunk");
         }
-        
-        // Update progress based on chunks processed
-        setState(prev => ({ 
-          ...prev, 
-          uploadProgress: 30 + Math.round(60 * (i + 1) / chunks.length)
-        }));
-        
-        // Store the sync ID from the first chunk for subsequent chunks
-        if (i === 0) {
-          syncId = response.data.sync_id;
-        }
-        
-        // Accumulate results
-        totalProcessed += response.data.processed;
-        totalInserted += response.data.inserted;
-        totalInvalid += response.data.invalid;
-        invalidRecords = [...invalidRecords, ...response.data.invalidRecords];
       }
       
       setState(prev => ({

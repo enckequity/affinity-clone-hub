@@ -1,6 +1,6 @@
 
 // Follow this setup guide to integrate the Deno runtime into your application:
-// https://deno.com/manual/examples/deploy_node_server
+// https://deno.land/manual/examples/deploy_node_server
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.29.0";
@@ -102,13 +102,11 @@ serve(async (req) => {
   
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   
-  // Validate sync type
-  const syncType = payload.sync_type || 'import';
+  // Validate sync type and ensure it's included in ALLOWED_SYNC_TYPES
+  let syncType = payload.sync_type || 'import';
   if (!ALLOWED_SYNC_TYPES.includes(syncType)) {
-    return new Response(
-      JSON.stringify({ error: `Invalid sync type: ${syncType}. Allowed types: ${ALLOWED_SYNC_TYPES.join(', ')}` }),
-      { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-    );
+    console.log(`Invalid sync type: ${syncType}. Defaulting to 'import'`);
+    syncType = 'import';
   }
   
   let syncLogId = payload.sync_id;
