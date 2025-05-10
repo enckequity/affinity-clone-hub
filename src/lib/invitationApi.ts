@@ -45,14 +45,19 @@ export async function sendInvitationEmail(
  */
 export async function getUserProfile(email: string): Promise<string | null> {
   try {
-    const { data, error } = await supabase
+    // Use simpler type handling with explicit return type
+    const response = await supabase
       .from('profiles')
       .select('id')
       .eq('email', email)
       .single();
     
-    if (error) throw error;
-    return data?.id || null;
+    if (response.error) {
+      console.error('Error fetching user profile:', response.error);
+      return null;
+    }
+    
+    return response.data?.id || null;
   } catch (error) {
     console.error('Error fetching user profile:', error);
     return null;
