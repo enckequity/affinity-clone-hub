@@ -95,12 +95,12 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
       }
       
       // Check if there's already a pending invitation for this email
-      // We need to use a generic approach since the type isn't in the generated types
       const { data: existingInvite, error: inviteCheckError } = await supabase
-        .rpc('get_team_invitation_by_email', {
-          p_email: values.email,
-          p_organization_id: organizationData.organization_id
-        });
+        .from('team_invitations')
+        .select('*')
+        .eq('email', values.email)
+        .eq('organization_id', organizationData.organization_id)
+        .in('status', ['pending', 'sent']);
         
       if (inviteCheckError) {
         console.error("Error checking invitation:", inviteCheckError);
@@ -114,15 +114,19 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         return;
       }
       
-      // Create the invitation using a stored procedure
+      // Create the invitation
       const { data: invitation, error: invitationError } = await supabase
-        .rpc('create_team_invitation', {
-          p_email: values.email,
-          p_role: values.role,
-          p_organization_id: organizationData.organization_id,
-          p_invited_by: user.id,
-          p_personal_message: values.message || null
-        });
+        .from('team_invitations')
+        .insert({
+          email: values.email,
+          role: values.role,
+          organization_id: organizationData.organization_id,
+          invited_by: user.id,
+          personal_message: values.message || null,
+          status: 'sent'
+        })
+        .select('*')
+        .single();
         
       if (invitationError) throw invitationError;
 

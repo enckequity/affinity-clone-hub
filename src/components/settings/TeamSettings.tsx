@@ -36,11 +36,22 @@ export function TeamSettings() {
         return [];
       }
 
-      // Get members using a stored procedure
+      // Get members using a direct join query
       const { data, error } = await supabase
-        .rpc('get_organization_members', {
-          p_organization_id: organizationData.organization_id
-        });
+        .from('organization_members')
+        .select(`
+          user_id,
+          role,
+          profiles:user_id(
+            first_name,
+            last_name,
+            avatar_url
+          ),
+          users:user_id(
+            email
+          )
+        `)
+        .eq('organization_id', organizationData.organization_id);
 
       if (error) {
         console.error('Error fetching team members:', error);
@@ -49,10 +60,10 @@ export function TeamSettings() {
 
       return data.map((member: any) => ({
         id: member.user_id,
-        email: member.email,
-        first_name: member.first_name,
-        last_name: member.last_name,
-        avatar_url: member.avatar_url,
+        email: member.users?.email,
+        first_name: member.profiles?.first_name,
+        last_name: member.profiles?.last_name,
+        avatar_url: member.profiles?.avatar_url,
         role: member.role,
         status: 'active' as const
       })) as TeamMember[];
@@ -77,11 +88,11 @@ export function TeamSettings() {
         return [];
       }
 
-      // Get invitations using a stored procedure
+      // Get invitations using standard query
       const { data, error } = await supabase
-        .rpc('get_team_invitations', {
-          p_organization_id: organizationData.organization_id
-        });
+        .from('team_invitations')
+        .select('*')
+        .eq('organization_id', organizationData.organization_id);
 
       if (error) {
         console.error('Error fetching team invitations:', error);
@@ -96,9 +107,9 @@ export function TeamSettings() {
   const handleDelete = async (invitationId: string) => {
     try {
       const { error } = await supabase
-        .rpc('delete_team_invitation', {
-          p_invitation_id: invitationId
-        });
+        .from('team_invitations')
+        .delete()
+        .eq('id', invitationId);
       
       if (error) throw error;
       
@@ -252,9 +263,6 @@ export function TeamSettings() {
                             ? `${member.first_name} ${member.last_name}`
                             : member.email.split('@')[0]}
                         </p>
-                        {member.job_title && (
-                          <p className="text-xs text-muted-foreground">{member.job_title}</p>
-                        )}
                       </div>
                     </div>
                   </TableCell>
