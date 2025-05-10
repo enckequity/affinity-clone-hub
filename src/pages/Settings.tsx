@@ -24,12 +24,11 @@ import { useSearchParams } from 'react-router-dom';
 import { useSubscription } from '@/hooks/use-subscription';
 import { format } from 'date-fns';
 
-// Define the price IDs for each plan - use test mode IDs while developing
-// You MUST replace these with your actual Stripe price IDs
+// Define the price IDs for each plan - use your actual Stripe price IDs
 const PLAN_PRICE_IDS = {
-  basic: 'price_basic', // Replace with your actual Stripe price ID
-  professional: 'price_professional', // Replace with your actual Stripe price ID
-  enterprise: 'price_enterprise' // Replace with your actual Stripe price ID
+  basic: 'price_1RN0uSH5uTyBP7nHvxZowhIu', 
+  professional: 'price_1RN0upH5uTyBP7nHVwGiuEy1', 
+  enterprise: 'price_1RN0v3H5uTyBP7nHLSUpOLyO'
 };
 
 const Settings = () => {
