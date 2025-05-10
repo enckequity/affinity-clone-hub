@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Define response types for type casting
 type SingleRowResponse<T> = { data: T | null; error: Error | null };
@@ -10,6 +11,7 @@ type MultiRowResponse<T> = { data: T[] | null; error: Error | null };
 
 export function useContacts() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -24,6 +26,11 @@ export function useContacts() {
       
     if (searchQuery) {
       query = query.or(`first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`);
+    }
+    
+    // Remove organization_id filter and use user_id instead
+    if (user) {
+      query = query.eq('created_by', user.id);
     }
     
     const result = await query as unknown as MultiRowResponse<any>;
@@ -42,6 +49,11 @@ export function useContacts() {
   
   const createContact = useMutation({
     mutationFn: async (newContact: any) => {
+      // Add created_by for single-user mode
+      if (user) {
+        newContact.created_by = user.id;
+      }
+      
       const result = await supabase
         .from('contacts')
         .insert([newContact])

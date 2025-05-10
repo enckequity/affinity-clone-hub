@@ -8,7 +8,6 @@ import { useSettingsTabs } from '@/hooks/use-settings-tabs';
 // Import individual tab components
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { AccountSettings } from '@/components/settings/AccountSettings';
-import { TeamSettings } from '@/components/settings/TeamSettings';
 import { CommunicationsSettings } from '@/components/settings/CommunicationsSettings';
 import { BillingSettings } from '@/components/settings/BillingSettings';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
@@ -52,7 +51,7 @@ const Settings = () => {
         <TabsList className="mb-4">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="account">Account</TabsTrigger>
-          <TabsTrigger value="team">Team</TabsTrigger>
+          {/* Team tab removed */}
           <TabsTrigger value="communications">Communications</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
@@ -67,9 +66,7 @@ const Settings = () => {
           <AccountSettings />
         </TabsContent>
         
-        <TabsContent value="team" className="space-y-4">
-          <TeamSettings />
-        </TabsContent>
+        {/* Team tab content removed */}
         
         <TabsContent value="communications" className="space-y-8">
           <CommunicationsSettings />

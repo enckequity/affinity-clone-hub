@@ -13,15 +13,8 @@ export async function checkExistingInvite(
   email: string,
   organizationId: string
 ): Promise<InviteCheckResponse[]> {
-  const { data, error } = await supabase.functions.invoke('check-team-invitation', {
-    body: { 
-      email,
-      organizationId
-    }
-  }) as unknown as { data: InviteCheckResponse[], error: Error | null };
-  
-  if (error) throw error;
-  return data || [];
+  // This function is now simplified for single-user mode
+  return [];
 }
 
 /**
@@ -34,18 +27,8 @@ export async function createInvitation(
   invitedBy: string,
   personalMessage: string | null
 ): Promise<InvitationResponse> {
-  const { data, error } = await supabase.functions.invoke('create-team-invitation', {
-    body: { 
-      email,
-      role,
-      organizationId,
-      invitedBy,
-      personalMessage
-    }
-  }) as unknown as { data: InvitationResponse, error: Error | null };
-  
-  if (error) throw error;
-  return data as InvitationResponse;
+  // This function is now simplified for single-user mode
+  throw new Error('Team functionality is temporarily disabled');
 }
 
 /**
@@ -57,57 +40,20 @@ export async function sendInvitationEmail(
   role: string,
   message?: string
 ): Promise<void> {
-  const { error } = await supabase.functions.invoke('send-team-invitation', {
-    body: { 
-      invitationId,
-      email,
-      role,
-      message 
-    }
-  }) as unknown as { data: any, error: Error | null };
-  
-  if (error) throw error;
+  // This function is now simplified for single-user mode
+  throw new Error('Team functionality is temporarily disabled');
 }
 
 /**
- * Get organization ID for user
+ * Get user ID from profile
  */
-export async function getUserOrganizationId(userId: string): Promise<string> {
+export async function getUserProfile(email: string): Promise<string | null> {
   const result = await supabase
-    .from('organization_members')
-    .select('organization_id')
-    .eq('user_id', userId)
-    .single() as unknown as SingleRowResponse<{ organization_id: string }>;
-
-  if (result.error) throw result.error;
-  if (!result.data) throw new Error('No organization found');
-  
-  return result.data.organization_id;
-}
-
-/**
- * Check if a user is already a member of an organization
- */
-export async function checkIfUserIsMember(email: string, organizationId: string): Promise<boolean> {
-  // Get user ID from email
-  const userResult = await supabase
     .from('profiles')
     .select('id')
     .eq('email', email)
     .maybeSingle() as unknown as SingleRowResponse<{ id: string }>;
 
-  if (userResult.error) throw userResult.error;
-  if (!userResult.data) return false; // User doesn't exist
-  
-  // Check if user is already a member
-  const memberResult = await supabase
-    .from('organization_members')
-    .select()
-    .eq('organization_id', organizationId)
-    .eq('user_id', userResult.data.id)
-    .maybeSingle() as unknown as SingleRowResponse<Record<string, any>>;
-
-  if (memberResult.error) throw memberResult.error;
-  
-  return !!memberResult.data;
+  if (result.error) throw result.error;
+  return result.data?.id || null;
 }

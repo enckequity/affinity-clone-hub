@@ -45,6 +45,11 @@ export function useCommunications() {
       query = query.eq('important', filterByImportance);
     }
     
+    // Remove organization_id filter to focus on single-user mode
+    if (user) {
+      query = query.eq('user_id', user.id);
+    }
+    
     const result = await query as unknown as MultiRowResponse<any>;
     
     if (result.error) {
