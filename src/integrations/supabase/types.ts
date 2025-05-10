@@ -609,6 +609,38 @@ export type Database = {
           },
         ]
       }
+      import_errors: {
+        Row: {
+          errors: Json
+          id: string
+          sync_id: string
+          timestamp: string
+          user_id: string
+        }
+        Insert: {
+          errors: Json
+          id?: string
+          sync_id: string
+          timestamp?: string
+          user_id: string
+        }
+        Update: {
+          errors?: Json
+          id?: string
+          sync_id?: string
+          timestamp?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_errors_sync_id_fkey"
+            columns: ["sync_id"]
+            isOneToOne: false
+            referencedRelation: "communication_sync_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notes: {
         Row: {
           content: string

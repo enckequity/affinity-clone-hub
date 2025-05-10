@@ -1,4 +1,3 @@
-
 // Follow this setup guide to integrate the Deno runtime into your application:
 // https://deno.com/manual/examples/deploy_node_server
 
@@ -138,7 +137,10 @@ serve(async (req) => {
         user_id: payload.user_id
       });
     } else {
-      invalidCommunications.push(comm);
+      invalidCommunications.push({
+        record: comm,
+        reason: "Failed validation checks"
+      });
     }
   }
   
@@ -163,6 +165,20 @@ serve(async (req) => {
     if (error) {
       console.error('Error inserting communications:', error);
       
+      // Log errors to the import_errors table
+      try {
+        await supabase
+          .from('import_errors')
+          .insert({
+            user_id: payload.user_id,
+            sync_id: syncLogId,
+            errors: [{ error: error.message }],
+            timestamp: new Date().toISOString()
+          });
+      } catch (errLoggingError) {
+        console.error('Error logging invalid records:', errLoggingError);
+      }
+      
       // Update sync log to failed status
       await supabase
         .from('communication_sync_logs')
@@ -180,6 +196,22 @@ serve(async (req) => {
     }
     
     processedCount = validCommunications.length;
+  }
+  
+  // If we have invalid records, log them to the import_errors table
+  if (invalidCommunications.length > 0) {
+    try {
+      await supabase
+        .from('import_errors')
+        .insert({
+          user_id: payload.user_id,
+          sync_id: syncLogId,
+          errors: invalidCommunications,
+          timestamp: new Date().toISOString()
+        });
+    } catch (errLoggingError) {
+      console.error('Error logging invalid records:', errLoggingError);
+    }
   }
   
   // Update sync log to completed status
