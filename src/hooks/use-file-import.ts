@@ -98,12 +98,55 @@ export const useFileImport = () => {
     
     // If we already have a file selected, re-parse it with the new setting
     if (state.file) {
-      // Fix: Create a proper ChangeEvent object for HTMLInputElement
-      const mockEvent = {
-        target: { files: [state.file] }
-      } as React.ChangeEvent<HTMLInputElement>;
+      // Instead of creating a mock event, call parseFile directly
+      reparseCurrentFile();
+    }
+  };
+  
+  const reparseCurrentFile = async () => {
+    if (!state.file) return;
+    
+    try {
+      toast({
+        title: "Reprocessing file",
+        description: "Analyzing your CSV file with new settings...",
+      });
       
-      handleFileChange(mockEvent);
+      const { data, fileFormat, skippedRecords } = await parseFileContent(state.file, !state.forceImport);
+      
+      setState(prev => ({
+        ...prev,
+        parsedData: data,
+        showConfirm: true,
+        fileFormat
+      }));
+      
+      // Show toast with the detected format and record count
+      let formatName = 'Unknown';
+      if (fileFormat === 'imazing') formatName = 'iMessage Export';
+      else if (fileFormat === 'standard') formatName = 'Standard CSV';
+      
+      let toastMessage = `Detected format: ${formatName}. Found ${data.length} records.`;
+      if (skippedRecords.length > 0) {
+        toastMessage += ` (${skippedRecords.length} records skipped during parsing)`;
+      }
+      
+      toast({
+        title: "File reparsed successfully",
+        description: toastMessage,
+      });
+    } catch (err: any) {
+      console.error("Error parsing file:", err);
+      setState(prev => ({
+        ...prev,
+        error: `Failed to parse file: ${err.message}`
+      }));
+      
+      toast({
+        title: "Error parsing file",
+        description: err.message || "Failed to parse the CSV file.",
+        variant: "destructive",
+      });
     }
   };
   
