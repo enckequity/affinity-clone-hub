@@ -49,6 +49,31 @@ function extractPhoneNumber(chatSession: string): string | null {
   return null;
 }
 
+// Normalize direction value to lowercase and ensure it's valid
+function normalizeDirection(direction: string): string {
+  if (!direction) return 'unknown';
+  
+  // Convert to lowercase
+  const lowercaseDirection = direction.toLowerCase();
+  
+  // Check if it matches one of our allowed directions
+  if (ALLOWED_DIRECTIONS.includes(lowercaseDirection)) {
+    return lowercaseDirection;
+  }
+  
+  // Handle common variations
+  if (lowercaseDirection.includes('in') || lowercaseDirection.includes('received')) {
+    return 'incoming';
+  } else if (lowercaseDirection.includes('out') || lowercaseDirection.includes('sent')) {
+    return 'outgoing';
+  } else if (lowercaseDirection.includes('miss')) {
+    return 'missed';
+  }
+  
+  // Default fallback
+  return 'unknown';
+}
+
 interface CommunicationRecord {
   // Required fields
   type: 'call' | 'text';
@@ -207,15 +232,12 @@ serve(async (req) => {
           
           // Message Type - determine direction
           const messageType = comm['type'] || comm['Type'] || '';
-          if (messageType.toLowerCase().includes('incoming')) {
-            record.direction = 'incoming';
-            incomingCount++;
-          } else if (messageType.toLowerCase().includes('outgoing')) {
-            record.direction = 'outgoing';
-            outgoingCount++;
-          } else {
-            record.direction = 'unknown';
-          }
+          // Normalize the direction using our new function
+          record.direction = normalizeDirection(messageType);
+          
+          // Track direction counts
+          if (record.direction === 'incoming') incomingCount++;
+          if (record.direction === 'outgoing') outgoingCount++;
           
           // Sender Name - use from CSV for incoming, user profile for outgoing
           const senderName = comm['sender name'] || comm['Sender Name'] || '';
@@ -256,18 +278,24 @@ serve(async (req) => {
           // For standard format, validate required fields
           if (!comm.contact_phone) throw new Error('Missing contact phone');
           if (!comm.type) throw new Error('Missing type');
-          if (!comm.direction || !ALLOWED_DIRECTIONS.includes(comm.direction)) {
+          
+          // Normalize direction using our new function
+          const normalizedDirection = normalizeDirection(comm.direction);
+          
+          if (!normalizedDirection) {
             throw new Error(`Invalid direction: ${comm.direction}`);
           }
+          
           if (!comm.timestamp) throw new Error('Missing timestamp');
           
           // Count directions
-          if (comm.direction === 'incoming') incomingCount++;
-          if (comm.direction === 'outgoing') outgoingCount++;
+          if (normalizedDirection === 'incoming') incomingCount++;
+          if (normalizedDirection === 'outgoing') outgoingCount++;
           
-          // Add to valid records
+          // Add to valid records with normalized direction
           validRecords.push({
             ...comm,
+            direction: normalizedDirection,
             user_id: payload.user_id
           });
           
