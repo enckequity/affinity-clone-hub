@@ -60,7 +60,7 @@ export async function sendInvitationEmail(
       role,
       message 
     }
-  });
+  }) as unknown as { data: any, error: Error | null };
   
   if (error) throw error;
 }
