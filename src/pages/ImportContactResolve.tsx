@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, Phone, User, Plus, ChevronsUpDown, LinkIcon } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 import { useContacts } from '@/hooks/use-contacts';
+import { useAuth } from '@/contexts/AuthContext'; // Add this import
 
 interface PhoneContact {
   id: string;
@@ -30,6 +31,7 @@ export default function ImportContactResolve() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { contacts, isLoading: isContactsLoading } = useContacts();
+  const { user } = useAuth(); // Add this to get the current user
   
   const [phoneContacts, setPhoneContacts] = useState<PhoneContact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -110,17 +112,18 @@ export default function ImportContactResolve() {
   };
   
   const handleCreateNewContact = async () => {
-    if (!selectedContact) return;
+    if (!selectedContact || !user) return;
     
     try {
-      // Create new contact
+      // Create new contact - fix: add created_by field
       const { data: contactData, error: contactError } = await supabase
         .from('contacts')
         .insert({
           first_name: newContact.firstName,
           last_name: newContact.lastName,
           phone: selectedContact.phone_number,
-          email: newContact.email || null
+          email: newContact.email || null,
+          created_by: user.id // Add the required created_by field
         })
         .select();
         

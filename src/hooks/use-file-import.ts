@@ -345,7 +345,7 @@ export const useFileImport = () => {
             title: "Import successful",
             description: `${resultMessage} ${uniqueUnmatchedPhones.length} phone numbers need to be resolved.`,
             action: uniqueUnmatchedPhones.length > 0 ? {
-              label: "Resolve Contacts",
+              children: "Resolve Contacts",
               onClick: () => navigate('/import/resolve-contacts')
             } : undefined
           });
