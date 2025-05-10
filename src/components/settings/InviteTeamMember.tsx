@@ -8,95 +8,22 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form } from "@/components/ui/form";
 import { Loader2 } from "lucide-react";
-import { TeamInvitation } from '@/types/teamTypes';
-
-// Define explicit, flat types to stop the "excessively deep" recursion
-interface OrgMemberResult {
-  data: { organization_id: string } | null;
-  error: Error | null;
-}
-
-interface ProfileResult {
-  data: { id: string } | null;
-  error: Error | null;
-}
-
-interface OrgMemberCheckResult {
-  data: Record<string, any> | null;
-  error: Error | null;
-}
-
-// Helper functions to simplify the main component code
-async function checkExistingInvite(
-  email: string,
-  organizationId: string
-) {
-  const { data, error } = await supabase.functions.invoke('check-team-invitation', {
-    body: { 
-      email,
-      organizationId
-    }
-  });
-  
-  if (error) throw error;
-  return data;
-}
-
-async function createInvitation(
-  email: string,
-  role: string,
-  organizationId: string,
-  invitedBy: string,
-  personalMessage: string | null
-) {
-  const { data, error } = await supabase.functions.invoke('create-team-invitation', {
-    body: { 
-      email,
-      role,
-      organizationId,
-      invitedBy,
-      personalMessage
-    }
-  });
-  
-  if (error) throw error;
-  return data;
-}
-
-async function sendInvitationEmail(
-  invitationId: string,
-  email: string,
-  role: string,
-  message?: string
-) {
-  const { error } = await supabase.functions.invoke('send-team-invitation', {
-    body: { 
-      invitationId,
-      email,
-      role,
-      message 
-    }
-  });
-  
-  if (error) throw error;
-}
+import { InviteFormFields } from './InviteFormFields';
+import { InviteFormValues } from '@/types/invitationTypes';
+import {
+  checkExistingInvite,
+  createInvitation,
+  sendInvitationEmail,
+  getUserOrganizationId,
+  checkIfUserIsMember
+} from '@/lib/invitationApi';
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -115,7 +42,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
   const { toast } = useToast();
   const { user } = useAuth();
   
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<InviteFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: '',
@@ -124,54 +51,31 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
     }
   });
   
-  const handleSubmit = async (values: z.infer<typeof formSchema>) => {
+  const handleSubmit = async (values: InviteFormValues) => {
     if (!user) return;
     
     setIsSubmitting(true);
     
     try {
-      // First get the organization ID for the current user with explicit typing
-      const orgResult = await supabase
-        .from('organization_members')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .single() as unknown as OrgMemberResult;
+      // Get organization ID
+      const organizationId = await getUserOrganizationId(user.id);
       
-      if (orgResult.error) throw orgResult.error;
-      if (!orgResult.data) throw new Error('No organization found');
-      
-      const organizationId = orgResult.data.organization_id;
-      
-      // Check if the user is already a member of the organization
-      const existingMemberResult = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', values.email)
-        .maybeSingle() as unknown as ProfileResult;
-
-      if (existingMemberResult.data) {
-        const alreadyMemberResult = await supabase
-          .from('organization_members')
-          .select()
-          .eq('organization_id', organizationId)
-          .eq('user_id', existingMemberResult.data.id)
-          .maybeSingle() as unknown as OrgMemberCheckResult;
-
-        if (alreadyMemberResult.data) {
-          toast({
-            title: "User is already a member",
-            description: "This user is already a member of your organization.",
-            variant: "destructive",
-          });
-          setIsSubmitting(false);
-          return;
-        }
+      // Check if user is already a member
+      const isAlreadyMember = await checkIfUserIsMember(values.email, organizationId);
+      if (isAlreadyMember) {
+        toast({
+          title: "User is already a member",
+          description: "This user is already a member of your organization.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
       }
       
-      // Check if there's already a pending invitation for this email - FIX THE TYPE HERE
+      // Check if invitation already exists
       const existingInvites = await checkExistingInvite(values.email, organizationId) as any[];
       
-      if (existingInvites && Array.isArray(existingInvites) && existingInvites.length > 0) {
+      if (existingInvites && existingInvites.length > 0) {
         toast({
           title: "Invitation already sent",
           description: "There is already a pending invitation for this email address.",
@@ -181,7 +85,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         return;
       }
       
-      // Create the invitation via edge function
+      // Create invitation
       const invitationData = await createInvitation(
         values.email,
         values.role,
@@ -192,7 +96,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
       
       if (!invitationData || !invitationData.id) throw new Error('Failed to create invitation');
 
-      // Send the invitation email via edge function
+      // Send invitation email
       await sendInvitationEmail(
         invitationData.id,
         values.email,
@@ -233,72 +137,9 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 py-4">
-            <FormField
+            <InviteFormFields 
               control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email Address</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="colleague@example.com" 
-                      type="email"
-                      {...field}
-                      disabled={isSubmitting}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="role"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Role</FormLabel>
-                  <FormControl>
-                    <Select value={field.value} onValueChange={field.onChange} disabled={isSubmitting}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
-                        <SelectItem value="member">Team Member</SelectItem>
-                        <SelectItem value="readonly">Read-only</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {field.value === 'admin' && 'Full access to all features and settings'}
-                    {field.value === 'manager' && 'Can manage deals, contacts, and activities, but limited settings access'}
-                    {field.value === 'member' && 'Can create and update deals, contacts, and activities'}
-                    {field.value === 'readonly' && 'Can only view information, no editing capabilities'}
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="message"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Personal Message (Optional)</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Add a personal message to your invitation..." 
-                      className="min-h-[100px]"
-                      {...field}
-                      disabled={isSubmitting}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              isSubmitting={isSubmitting}
             />
             
             <DialogFooter>
