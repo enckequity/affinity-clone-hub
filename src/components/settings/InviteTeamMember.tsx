@@ -16,7 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Form } from "@/components/ui/form";
 import { Loader2 } from "lucide-react";
 import { InviteFormFields } from './InviteFormFields';
-import { InviteFormValues } from '@/types/invitationTypes';
+import { InviteFormValues, InviteCheckResponse } from '@/types/invitationTypes';
 import {
   checkExistingInvite,
   createInvitation,
@@ -73,7 +73,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
       }
       
       // Check if invitation already exists
-      const existingInvites = await checkExistingInvite(values.email, organizationId) as any[];
+      const existingInvites = await checkExistingInvite(values.email, organizationId);
       
       if (existingInvites && existingInvites.length > 0) {
         toast({
@@ -92,7 +92,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         organizationId,
         user.id,
         values.message || null
-      ) as { id: string };
+      );
       
       if (!invitationData || !invitationData.id) throw new Error('Failed to create invitation');
 

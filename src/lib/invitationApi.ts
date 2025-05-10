@@ -14,10 +14,10 @@ export async function checkExistingInvite(
       email,
       organizationId
     }
-  });
+  }) as unknown as { data: InviteCheckResponse[], error: Error | null };
   
   if (error) throw error;
-  return data as InviteCheckResponse[] || [];
+  return data || [];
 }
 
 /**
@@ -38,7 +38,7 @@ export async function createInvitation(
       invitedBy,
       personalMessage
     }
-  });
+  }) as unknown as { data: InvitationResponse, error: Error | null };
   
   if (error) throw error;
   return data as InvitationResponse;
@@ -73,7 +73,7 @@ export async function getUserOrganizationId(userId: string): Promise<string> {
     .from('organization_members')
     .select('organization_id')
     .eq('user_id', userId)
-    .single();
+    .single() as unknown as { data: { organization_id: string } | null, error: Error | null };
 
   if (result.error) throw result.error;
   if (!result.data) throw new Error('No organization found');
@@ -90,7 +90,7 @@ export async function checkIfUserIsMember(email: string, organizationId: string)
     .from('profiles')
     .select('id')
     .eq('email', email)
-    .maybeSingle();
+    .maybeSingle() as unknown as { data: { id: string } | null, error: Error | null };
 
   if (userResult.error) throw userResult.error;
   if (!userResult.data) return false; // User doesn't exist
@@ -101,7 +101,7 @@ export async function checkIfUserIsMember(email: string, organizationId: string)
     .select()
     .eq('organization_id', organizationId)
     .eq('user_id', userResult.data.id)
-    .maybeSingle();
+    .maybeSingle() as unknown as { data: Record<string, any> | null, error: Error | null };
 
   if (memberResult.error) throw memberResult.error;
   

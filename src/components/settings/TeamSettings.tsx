@@ -29,7 +29,7 @@ export function TeamSettings() {
         .from('organization_members')
         .select('organization_id')
         .eq('user_id', user.id)
-        .single();
+        .single() as unknown as { data: { organization_id: string } | null, error: Error | null };
 
       if (orgError || !organizationData) {
         console.error('Error fetching organization:', orgError);
@@ -39,14 +39,14 @@ export function TeamSettings() {
       // Use the edge function to get members
       const { data, error } = await supabase.functions.invoke('get-team-members', {
         body: { organizationId: organizationData.organization_id }
-      });
+      }) as unknown as { data: TeamMember[], error: Error | null };
 
       if (error) {
         console.error('Error fetching team members:', error);
         return [];
       }
 
-      return data as TeamMember[];
+      return data || [];
     },
     enabled: !!user
   });
@@ -61,7 +61,7 @@ export function TeamSettings() {
         .from('organization_members')
         .select('organization_id')
         .eq('user_id', user.id)
-        .single();
+        .single() as unknown as { data: { organization_id: string } | null, error: Error | null };
 
       if (orgError || !organizationData) {
         console.error('Error fetching organization:', orgError);
@@ -71,14 +71,14 @@ export function TeamSettings() {
       // Use the edge function to get invitations
       const { data, error } = await supabase.functions.invoke('get-team-invitations', {
         body: { organizationId: organizationData.organization_id }
-      });
+      }) as unknown as { data: TeamInvitation[], error: Error | null };
 
       if (error) {
         console.error('Error fetching team invitations:', error);
         return [];
       }
 
-      return data as TeamInvitation[];
+      return data || [];
     },
     enabled: !!user
   });
