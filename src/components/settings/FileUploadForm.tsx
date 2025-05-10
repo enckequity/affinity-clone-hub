@@ -16,21 +16,21 @@ interface FileUploadFormProps {
 }
 
 export function FileUploadForm({ state, onFileChange, onUpload, onReset }: FileUploadFormProps) {
-  const { file, isUploading, uploadProgress, error, showConfirm, parsedData, fileFormat } = state;
+  const { file, isUploading, uploadProgress, error, showConfirm, parsedData } = state;
   
   return (
     <div className="space-y-4">
       <div className="grid w-full max-w-sm items-center gap-1.5">
-        <Label htmlFor="communications-file">Upload File</Label>
+        <Label htmlFor="communications-file">Upload CSV File</Label>
         <Input
           id="communications-file"
           type="file"
-          accept=".json,.csv"
+          accept=".csv"
           onChange={onFileChange}
           disabled={isUploading}
         />
         <p className="text-xs text-muted-foreground mt-1">
-          Supported formats: JSON, CSV, iMazing Export (CSV)
+          Upload your message history CSV file with phone number and timestamp columns
         </p>
       </div>
       
@@ -49,9 +49,7 @@ export function FileUploadForm({ state, onFileChange, onUpload, onReset }: FileU
           <Info className="h-4 w-4" />
           <AlertTitle>Ready to Import</AlertTitle>
           <AlertDescription>
-            {fileFormat === 'imazing' 
-              ? `Found ${parsedData.length} communication records from iMazing. Click 'Import Data' to continue.`
-              : `Found ${parsedData.length} communication records. Click 'Import Data' to continue.`}
+            Found {parsedData.length} message records. Click 'Import Data' to continue.
           </AlertDescription>
         </Alert>
       )}
@@ -61,7 +59,7 @@ export function FileUploadForm({ state, onFileChange, onUpload, onReset }: FileU
           <Label>Uploading...</Label>
           <Progress value={uploadProgress} className="w-full" />
           <p className="text-xs text-muted-foreground">
-            Please don't close this window while the import is in progress.
+            Please don't close this window while the import is in progress. Large files may take several minutes.
           </p>
         </div>
       )}

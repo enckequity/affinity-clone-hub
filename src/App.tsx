@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
+import Communications from "./pages/Communications";
 import Contacts from "./pages/Contacts";
 import Companies from "./pages/Companies";
 import Deals from "./pages/Deals";
@@ -47,6 +48,7 @@ const App = () => (
               </ProtectedRoute>
             }>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/communications" element={<Communications />} />
               <Route path="/contacts" element={<Contacts />} />
               <Route path="/companies" element={<Companies />} />
               <Route path="/deals" element={<Deals />} />

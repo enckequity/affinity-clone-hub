@@ -1,86 +1,100 @@
 
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { cn } from "@/lib/utils";
-import { 
-  LayoutDashboard, 
-  Users, 
-  Building2, 
-  TrendingUp, 
-  CalendarClock,
-  Workflow,
+import React from "react";
+import { NavLink } from "react-router-dom";
+import {
+  BarChart3,
+  Users,
+  Building2,
+  MessagesSquare,
+  Calendar,
   Settings,
-  HelpCircle
-} from 'lucide-react';
-
-const navItems = [
-  {
-    title: 'Dashboard',
-    href: '/',
-    icon: LayoutDashboard,
-  },
-  {
-    title: 'Contacts',
-    href: '/contacts',
-    icon: Users,
-  },
-  {
-    title: 'Companies',
-    href: '/companies',
-    icon: Building2,
-  },
-  {
-    title: 'Deals',
-    href: '/deals',
-    icon: TrendingUp,
-  },
-  {
-    title: 'Activities',
-    href: '/activities',
-    icon: CalendarClock,
-  },
-  {
-    title: 'Workflows',
-    href: '/workflows',
-    icon: Workflow,
-  },
-  {
-    title: 'Settings',
-    href: '/settings',
-    icon: Settings,
-  },
-  {
-    title: 'Help',
-    href: '/help',
-    icon: HelpCircle,
-  }
-];
+  HelpCircle,
+  DollarSign,
+  GitFlow,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useMobile } from "@/hooks/use-mobile";
 
 interface AppNavProps {
-  isCollapsed: boolean;
+  isSidebarCollapsed: boolean;
 }
 
-export function AppNav({ isCollapsed }: AppNavProps) {
-  const location = useLocation();
-  const currentPath = location.pathname;
+export const AppNav = ({ isSidebarCollapsed }: AppNavProps) => {
+  const isMobile = useMobile();
+  
+  const navItems = [
+    {
+      title: "Dashboard",
+      href: "/",
+      icon: BarChart3,
+    },
+    {
+      title: "Contacts",
+      href: "/contacts",
+      icon: Users,
+    },
+    {
+      title: "Companies",
+      href: "/companies",
+      icon: Building2,
+    },
+    {
+      title: "Communications",
+      href: "/communications",
+      icon: MessagesSquare,
+    },
+    {
+      title: "Deals",
+      href: "/deals",
+      icon: DollarSign,
+    },
+    {
+      title: "Activities",
+      href: "/activities",
+      icon: Calendar,
+    },
+    {
+      title: "Workflows",
+      href: "/workflows",
+      icon: GitFlow,
+    },
+    {
+      title: "Settings",
+      href: "/settings",
+      icon: Settings,
+    },
+    {
+      title: "Help",
+      href: "/help",
+      icon: HelpCircle,
+    },
+  ];
   
   return (
-    <nav className="grid gap-1 px-2">
-      {navItems.map((item, index) => (
-        <Link
-          key={index}
-          to={item.href}
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-            currentPath === item.href ? 
-              "bg-muted font-medium text-primary" : 
-              "hover:bg-muted hover:text-primary"
+    <nav className="space-y-2 px-2 py-5 mt-2">
+      {navItems.map((item) => (
+        <NavLink to={item.href} key={item.href}>
+          {({ isActive }) => (
+            <Button
+              variant="ghost"
+              size={isSidebarCollapsed ? "icon" : "default"}
+              className={cn(
+                "w-full justify-start",
+                isActive
+                  ? "bg-muted text-primary"
+                  : "text-muted-foreground hover:text-foreground",
+                isMobile && "justify-center px-2"
+              )}
+            >
+              <item.icon
+                className={cn("h-5 w-5", !isSidebarCollapsed && "mr-2")}
+              />
+              {!isSidebarCollapsed && !isMobile && <span>{item.title}</span>}
+            </Button>
           )}
-        >
-          <item.icon className="h-4 w-4" />
-          {!isCollapsed && <span>{item.title}</span>}
-        </Link>
+        </NavLink>
       ))}
     </nav>
   );
-}
+};

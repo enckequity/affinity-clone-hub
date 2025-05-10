@@ -38,3 +38,13 @@ export interface UserSettings {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface CommunicationRecord {
+  contact_phone: string;
+  contact_name?: string;
+  direction: string;
+  type: string;
+  content?: string;
+  timestamp: string;
+  duration?: number;
+}

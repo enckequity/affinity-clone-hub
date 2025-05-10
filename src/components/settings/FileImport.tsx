@@ -1,26 +1,17 @@
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import React, { useState } from 'react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { FileUploadForm } from './FileUploadForm';
 import { ImportResultDisplay } from './ImportResultDisplay';
 import { parseFileContent } from '@/utils/fileParsingUtils';
-import { FileUploadState, ImportResult, UserSettings } from '@/types/fileImport';
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { FileUploadState, ImportResult } from '@/types/fileImport';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCommunications } from '@/hooks/use-communications';
-import { format } from 'date-fns';
 
 export function FileImport() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { userSettings, updateUserSettings } = useCommunications();
-  const [importEnabled, setImportEnabled] = useState(false);
-  const [importTime, setImportTime] = useState('00:00');
   const [state, setState] = useState<FileUploadState>({
     file: null,
     isUploading: false,
@@ -31,48 +22,6 @@ export function FileImport() {
     showConfirm: false,
     fileFormat: 'unknown'
   });
-
-  // Initialize state from user settings
-  useEffect(() => {
-    if (userSettings) {
-      setImportEnabled(userSettings.import_enabled || false);
-      
-      // Convert time from database format to input format
-      if (userSettings.daily_import_time) {
-        const timeObj = new Date(userSettings.daily_import_time);
-        const hours = String(timeObj.getUTCHours()).padStart(2, '0');
-        const minutes = String(timeObj.getUTCMinutes()).padStart(2, '0');
-        setImportTime(`${hours}:${minutes}`);
-      }
-    }
-  }, [userSettings]);
-
-  const handleSaveSettings = async () => {
-    if (!user) return;
-    
-    try {
-      // Parse the time from input format to database format
-      const [hours, minutes] = importTime.split(':').map(Number);
-      const timeValue = new Date();
-      timeValue.setUTCHours(hours, minutes, 0, 0);
-      
-      await updateUserSettings.mutateAsync({
-        import_enabled: importEnabled,
-        daily_import_time: timeValue.toISOString()
-      });
-      
-      toast({
-        title: "Settings saved",
-        description: "Your daily import settings have been updated.",
-      });
-    } catch (err: any) {
-      toast({
-        title: "Error",
-        description: "Failed to save settings. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -91,10 +40,10 @@ export function FileImport() {
     }));
     
     // Validate file type
-    if (!selectedFile.name.endsWith('.json') && !selectedFile.name.endsWith('.csv')) {
+    if (!selectedFile.name.endsWith('.csv')) {
       setState(prev => ({
         ...prev,
-        error: "Please upload a JSON or CSV file"
+        error: "Please upload a CSV file"
       }));
       return;
     }
@@ -133,34 +82,74 @@ export function FileImport() {
       
       setState(prev => ({ ...prev, uploadProgress: 30 }));
       
-      // Call the edge function to process the data
-      const response = await supabase.functions.invoke('process-communications-import', {
-        body: {
-          communications: state.parsedData,
-          sync_type: 'import',
-          user_id: session.user.id
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
+      // Process the data in chunks for large files
+      const chunkSize = 500;
+      const chunks = [];
+      for (let i = 0; i < state.parsedData.length; i += chunkSize) {
+        chunks.push(state.parsedData.slice(i, i + chunkSize));
+      }
+      
+      let totalProcessed = 0;
+      let totalInserted = 0;
+      let totalInvalid = 0;
+      let invalidRecords: Array<{ record: any; reason: string }> = [];
+      let syncId = '';
+      
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        
+        // Call the edge function to process the chunk
+        const response = await supabase.functions.invoke('process-communications-import', {
+          body: {
+            communications: chunk,
+            sync_type: 'import',
+            user_id: session.user.id,
+            // If not the first chunk, include the sync ID to append to the same import
+            ...(i > 0 && { sync_id: syncId })
+          },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`
+          }
+        });
+        
+        if (response.error) {
+          console.error("Error response from edge function:", response.error);
+          throw new Error(response.error.message || "Failed to process data");
         }
-      });
-      
-      setState(prev => ({ ...prev, uploadProgress: 90 }));
-      
-      if (response.error) {
-        console.error("Error response from edge function:", response.error);
-        throw new Error(response.error.message || "Failed to process data");
+        
+        // Update progress based on chunks processed
+        setState(prev => ({ 
+          ...prev, 
+          uploadProgress: 30 + Math.round(60 * (i + 1) / chunks.length)
+        }));
+        
+        // Store the sync ID from the first chunk for subsequent chunks
+        if (i === 0) {
+          syncId = response.data.sync_id;
+        }
+        
+        // Accumulate results
+        totalProcessed += response.data.processed;
+        totalInserted += response.data.inserted;
+        totalInvalid += response.data.invalid;
+        invalidRecords = [...invalidRecords, ...response.data.invalidRecords];
       }
       
       setState(prev => ({
         ...prev,
         uploadProgress: 100,
-        result: response.data as ImportResult
+        result: {
+          processed: totalProcessed,
+          inserted: totalInserted,
+          invalid: totalInvalid,
+          invalidRecords,
+          sync_id: syncId
+        }
       }));
       
       toast({
         title: "Import successful",
-        description: `Successfully imported ${response.data.inserted} communications.`,
+        description: `Successfully imported ${totalInserted} messages.`,
       });
       
     } catch (err: any) {
@@ -201,50 +190,9 @@ export function FileImport() {
     <div className="space-y-8">
       <Card>
         <CardHeader>
-          <CardTitle>Daily Import Settings</CardTitle>
+          <CardTitle>Import CSV</CardTitle>
           <CardDescription>
-            Configure automatic daily import of your communications
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="importEnabled">Enable Daily Import</Label>
-              <p className="text-sm text-muted-foreground">
-                Automatically import your communications once per day
-              </p>
-            </div>
-            <Switch
-              id="importEnabled"
-              checked={importEnabled}
-              onCheckedChange={setImportEnabled}
-            />
-          </div>
-          
-          {importEnabled && (
-            <div className="space-y-2">
-              <Label htmlFor="importTime">Import Time (UTC)</Label>
-              <Input
-                id="importTime"
-                type="time"
-                value={importTime}
-                onChange={(e) => setImportTime(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Set the time when communications will be imported daily (in UTC)
-              </p>
-            </div>
-          )}
-          
-          <Button onClick={handleSaveSettings}>Save Settings</Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Manual Import</CardTitle>
-          <CardDescription>
-            Upload communications data from your device
+            Upload communication data from your CSV files
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
