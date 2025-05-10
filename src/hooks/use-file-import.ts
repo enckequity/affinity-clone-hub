@@ -5,6 +5,7 @@ import { FileUploadState, ImportResult } from '@/types/fileImport';
 import { parseFileContent, processCSVInChunks } from '@/utils/fileParsingUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { ToastAction } from "@/components/ui/toast";
 
 export const useFileImport = () => {
   const { toast } = useToast();
@@ -344,10 +345,11 @@ export const useFileImport = () => {
           toast({
             title: "Import successful",
             description: `${resultMessage} ${uniqueUnmatchedPhones.length} phone numbers need to be resolved.`,
-            action: uniqueUnmatchedPhones.length > 0 ? {
-              children: "Resolve Contacts",
-              onClick: () => navigate('/import/resolve-contacts')
-            } : undefined
+            action: uniqueUnmatchedPhones.length > 0 ? (
+              <ToastAction altText="Resolve Contacts" onClick={() => navigate('/import/resolve-contacts')}>
+                Resolve Contacts
+              </ToastAction>
+            ) : undefined
           });
         } else {
           toast({
