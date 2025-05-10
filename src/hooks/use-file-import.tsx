@@ -345,11 +345,11 @@ export const useFileImport = () => {
           toast({
             title: "Import successful",
             description: `${resultMessage} ${uniqueUnmatchedPhones.length} phone numbers need to be resolved.`,
-            action: uniqueUnmatchedPhones.length > 0 ? (
+            action: (
               <ToastAction altText="Resolve Contacts" onClick={() => navigate('/import/resolve-contacts')}>
                 Resolve Contacts
               </ToastAction>
-            ) : undefined
+            )
           });
         } else {
           toast({
