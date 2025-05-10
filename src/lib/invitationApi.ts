@@ -45,12 +45,12 @@ export async function sendInvitationEmail(
  * Get user ID from profile
  */
 export async function getUserProfile(email: string): Promise<string | null> {
-  const result = await supabase
+  const { data, error } = await supabase
     .from('profiles')
     .select('id')
     .eq('email', email)
     .maybeSingle();
     
-  if (result.error) throw result.error;
-  return result.data?.id || null;
+  if (error) throw error;
+  return data?.id || null;
 }
