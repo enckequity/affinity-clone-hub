@@ -4,6 +4,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+// Define response types for type casting
+type SingleRowResponse<T> = { data: T | null; error: Error | null };
+type MultiRowResponse<T> = { data: T[] | null; error: Error | null };
+
 export function useContacts() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -22,13 +26,13 @@ export function useContacts() {
       query = query.or(`first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`);
     }
     
-    const { data, error } = await query;
+    const result = await query as unknown as MultiRowResponse<any>;
     
-    if (error) {
-      throw error;
+    if (result.error) {
+      throw result.error;
     }
     
-    return data || [];
+    return result.data || [];
   };
   
   const contacts = useQuery({
@@ -38,16 +42,16 @@ export function useContacts() {
   
   const createContact = useMutation({
     mutationFn: async (newContact: any) => {
-      const { data, error } = await supabase
+      const result = await supabase
         .from('contacts')
         .insert([newContact])
-        .select();
+        .select() as unknown as MultiRowResponse<any>;
         
-      if (error) {
-        throw error;
+      if (result.error) {
+        throw result.error;
       }
       
-      return data[0];
+      return result.data[0];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
@@ -67,17 +71,17 @@ export function useContacts() {
   
   const updateContact = useMutation({
     mutationFn: async ({ id, ...contact }: any) => {
-      const { data, error } = await supabase
+      const result = await supabase
         .from('contacts')
         .update(contact)
         .eq('id', id)
-        .select();
+        .select() as unknown as MultiRowResponse<any>;
         
-      if (error) {
-        throw error;
+      if (result.error) {
+        throw result.error;
       }
       
-      return data[0];
+      return result.data[0];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
@@ -97,13 +101,13 @@ export function useContacts() {
   
   const deleteContact = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const result = await supabase
         .from('contacts')
         .delete()
-        .eq('id', id);
+        .eq('id', id) as unknown as { error: Error | null };
         
-      if (error) {
-        throw error;
+      if (result.error) {
+        throw result.error;
       }
       
       return id;

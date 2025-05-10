@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +13,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { TeamMember, TeamInvitation } from '@/types/teamTypes';
 
+// Define response types for type casting
+type SingleRowResponse<T> = { data: T | null; error: Error | null };
+type MultiRowResponse<T> = { data: T[] | null; error: Error | null };
+
 export function TeamSettings() {
   const [isInviting, setIsInviting] = useState(false);
   const { user, profile } = useAuth();
@@ -25,28 +28,28 @@ export function TeamSettings() {
     queryFn: async () => {
       if (!user) return [];
 
-      const { data: organizationData, error: orgError } = await supabase
+      const orgResult = await supabase
         .from('organization_members')
         .select('organization_id')
         .eq('user_id', user.id)
-        .single() as unknown as { data: { organization_id: string } | null, error: Error | null };
+        .single() as unknown as SingleRowResponse<{ organization_id: string }>;
 
-      if (orgError || !organizationData) {
-        console.error('Error fetching organization:', orgError);
+      if (orgResult.error || !orgResult.data) {
+        console.error('Error fetching organization:', orgResult.error);
         return [];
       }
 
       // Use the edge function to get members
-      const { data, error } = await supabase.functions.invoke('get-team-members', {
-        body: { organizationId: organizationData.organization_id }
+      const result = await supabase.functions.invoke('get-team-members', {
+        body: { organizationId: orgResult.data.organization_id }
       }) as unknown as { data: TeamMember[], error: Error | null };
 
-      if (error) {
-        console.error('Error fetching team members:', error);
+      if (result.error) {
+        console.error('Error fetching team members:', result.error);
         return [];
       }
 
-      return data || [];
+      return result.data || [];
     },
     enabled: !!user
   });
@@ -57,28 +60,28 @@ export function TeamSettings() {
     queryFn: async () => {
       if (!user) return [];
 
-      const { data: organizationData, error: orgError } = await supabase
+      const orgResult = await supabase
         .from('organization_members')
         .select('organization_id')
         .eq('user_id', user.id)
-        .single() as unknown as { data: { organization_id: string } | null, error: Error | null };
+        .single() as unknown as SingleRowResponse<{ organization_id: string }>;
 
-      if (orgError || !organizationData) {
-        console.error('Error fetching organization:', orgError);
+      if (orgResult.error || !orgResult.data) {
+        console.error('Error fetching organization:', orgResult.error);
         return [];
       }
 
       // Use the edge function to get invitations
-      const { data, error } = await supabase.functions.invoke('get-team-invitations', {
-        body: { organizationId: organizationData.organization_id }
+      const result = await supabase.functions.invoke('get-team-invitations', {
+        body: { organizationId: orgResult.data.organization_id }
       }) as unknown as { data: TeamInvitation[], error: Error | null };
 
-      if (error) {
-        console.error('Error fetching team invitations:', error);
+      if (result.error) {
+        console.error('Error fetching team invitations:', result.error);
         return [];
       }
 
-      return data || [];
+      return result.data || [];
     },
     enabled: !!user
   });

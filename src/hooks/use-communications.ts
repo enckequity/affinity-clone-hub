@@ -1,10 +1,13 @@
-
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserSettings } from '@/types/fileImport';
+
+// Define response types for type casting
+type SingleRowResponse<T> = { data: T | null; error: Error | null };
+type MultiRowResponse<T> = { data: T[] | null; error: Error | null };
 
 export function useCommunications() {
   const { toast } = useToast();
@@ -36,13 +39,13 @@ export function useCommunications() {
       query = query.eq('important', filterByImportance);
     }
     
-    const { data, error } = await query;
+    const result = await query as unknown as MultiRowResponse<any>;
     
-    if (error) {
-      throw error;
+    if (result.error) {
+      throw result.error;
     }
     
-    return data || [];
+    return result.data || [];
   };
   
   // Query for communications
@@ -53,16 +56,16 @@ export function useCommunications() {
   
   // Function to fetch sync logs
   const fetchSyncLogs = async () => {
-    const { data, error } = await supabase
+    const result = await supabase
       .from('communication_sync_logs')
       .select('*')
-      .order('start_time', { ascending: false });
+      .order('start_time', { ascending: false }) as unknown as MultiRowResponse<any>;
       
-    if (error) {
-      throw error;
+    if (result.error) {
+      throw result.error;
     }
     
-    return data || [];
+    return result.data || [];
   };
   
   // Query for sync logs
@@ -73,18 +76,18 @@ export function useCommunications() {
   
   // Function to fetch contact mappings
   const fetchContactMappings = async () => {
-    const { data, error } = await supabase
+    const result = await supabase
       .from('phone_contact_mappings')
       .select(`
         *,
         contacts:contact_id(id, first_name, last_name)
-      `);
+      `) as unknown as MultiRowResponse<any>;
       
-    if (error) {
-      throw error;
+    if (result.error) {
+      throw result.error;
     }
     
-    return data || [];
+    return result.data || [];
   };
   
   // Query for contact mappings
@@ -96,17 +99,17 @@ export function useCommunications() {
   // Mutation to mark a communication as read
   const markAsRead = useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await supabase
+      const result = await supabase
         .from('communications')
         .update({ read: true })
         .eq('id', id)
-        .select();
+        .select() as unknown as MultiRowResponse<any>;
         
-      if (error) {
-        throw error;
+      if (result.error) {
+        throw result.error;
       }
       
-      return data[0];
+      return result.data[0];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['communications'] });
@@ -123,17 +126,17 @@ export function useCommunications() {
   // Mutation to toggle importance
   const toggleImportance = useMutation({
     mutationFn: async ({ id, important }: { id: string; important: boolean }) => {
-      const { data, error } = await supabase
+      const result = await supabase
         .from('communications')
         .update({ important })
         .eq('id', id)
-        .select();
+        .select() as unknown as MultiRowResponse<any>;
         
-      if (error) {
-        throw error;
+      if (result.error) {
+        throw result.error;
       }
       
-      return data[0];
+      return result.data[0];
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['communications'] });
@@ -154,17 +157,17 @@ export function useCommunications() {
   // Mutation to update contact mapping
   const updateContactMapping = useMutation({
     mutationFn: async ({ id, contactId }: { id: string; contactId: string }) => {
-      const { data, error } = await supabase
+      const result = await supabase
         .from('phone_contact_mappings')
         .update({ contact_id: contactId })
         .eq('id', id)
-        .select();
+        .select() as unknown as MultiRowResponse<any>;
         
-      if (error) {
-        throw error;
+      if (result.error) {
+        throw result.error;
       }
       
-      return data[0];
+      return result.data[0];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['phone_contact_mappings'] });
@@ -251,18 +254,18 @@ export function useCommunications() {
   const fetchUserSettings = async () => {
     if (!user) return null;
     
-    const { data, error } = await supabase
+    const result = await supabase
       .from('user_settings')
       .select('*')
       .eq('user_id', user.id)
-      .single();
+      .single() as unknown as SingleRowResponse<UserSettings>;
       
-    if (error && error.code !== 'PGSQL_NO_ROWS_RETURNED') {
-      console.error("Error fetching user settings:", error);
-      throw error;
+    if (result.error && result.error.code !== 'PGSQL_NO_ROWS_RETURNED') {
+      console.error("Error fetching user settings:", result.error);
+      throw result.error;
     }
     
-    return data as UserSettings || null;
+    return result.data as UserSettings || null;
   };
   
   // Query for user settings
@@ -277,7 +280,7 @@ export function useCommunications() {
     mutationFn: async (settings: Partial<UserSettings>) => {
       if (!user) throw new Error('User not authenticated');
       
-      const { data, error } = await supabase
+      const result = await supabase
         .from('user_settings')
         .upsert({
           user_id: user.id,
@@ -285,11 +288,11 @@ export function useCommunications() {
         }, {
           onConflict: 'user_id'
         })
-        .select();
+        .select() as unknown as MultiRowResponse<UserSettings>;
         
-      if (error) throw error;
+      if (result.error) throw result.error;
       
-      return data[0];
+      return result.data[0];
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-settings'] });
