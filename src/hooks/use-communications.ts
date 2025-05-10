@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,6 +9,11 @@ import { UserSettings } from '@/types/fileImport';
 // Define response types for type casting
 type SingleRowResponse<T> = { data: T | null; error: Error | null };
 type MultiRowResponse<T> = { data: T[] | null; error: Error | null };
+
+// Define an interface for errors that might include a code property
+interface CodedError extends Error {
+  code?: string;
+}
 
 export function useCommunications() {
   const { toast } = useToast();
@@ -260,7 +266,7 @@ export function useCommunications() {
       .eq('user_id', user.id)
       .single() as unknown as SingleRowResponse<UserSettings>;
       
-    if (result.error && result.error.code !== 'PGSQL_NO_ROWS_RETURNED') {
+    if (result.error && (result.error as CodedError).code !== 'PGSQL_NO_ROWS_RETURNED') {
       console.error("Error fetching user settings:", result.error);
       throw result.error;
     }
