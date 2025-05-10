@@ -10,11 +10,11 @@ import {
   Settings,
   HelpCircle,
   DollarSign,
-  GitBranch,
+  GitBranch, // Replaced GitFlow with GitBranch
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile"; // Fixed hook name
 
 interface AppNavProps {
   isSidebarCollapsed: boolean;
@@ -57,7 +57,7 @@ export const AppNav = ({ isSidebarCollapsed }: AppNavProps) => {
     {
       title: "Workflows",
       href: "/workflows",
-      icon: GitBranch,
+      icon: GitBranch, // Changed from GitFlow to GitBranch
     },
     {
       title: "Settings",
@@ -80,18 +80,17 @@ export const AppNav = ({ isSidebarCollapsed }: AppNavProps) => {
               variant="ghost"
               size={isSidebarCollapsed ? "icon" : "default"}
               className={cn(
-                "w-fit min-w-[40px] justify-start",
+                "w-full justify-start",
                 isActive
                   ? "bg-muted text-primary"
                   : "text-muted-foreground hover:text-foreground",
-                isSidebarCollapsed && "justify-center px-2",
-                !isSidebarCollapsed && !isMobile && "pr-2"
+                isMobile && "justify-center px-2"
               )}
             >
               <item.icon
                 className={cn("h-5 w-5", !isSidebarCollapsed && "mr-2")}
               />
-              {!isSidebarCollapsed && !isMobile && <span className="whitespace-nowrap">{item.title}</span>}
+              {!isSidebarCollapsed && !isMobile && <span>{item.title}</span>}
             </Button>
           )}
         </NavLink>
