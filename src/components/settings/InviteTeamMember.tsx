@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Dialog,
@@ -69,7 +68,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         .from('organization_members')
         .select('organization_id')
         .eq('user_id', user.id)
-        .single() as OrgMemberResult;
+        .single() as unknown as OrgMemberResult;
       
       if (orgResult.error) throw orgResult.error;
       if (!orgResult.data) throw new Error('No organization found');
@@ -86,7 +85,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         .from('profiles')
         .select('id')
         .eq('email', values.email)
-        .maybeSingle() as ProfileResult;
+        .maybeSingle() as unknown as ProfileResult;
 
       if (existingMemberResult.data) {
         interface OrgMemberCheckResult {
@@ -99,7 +98,7 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
           .select()
           .eq('organization_id', organizationId)
           .eq('user_id', existingMemberResult.data.id)
-          .maybeSingle() as OrgMemberCheckResult;
+          .maybeSingle() as unknown as OrgMemberCheckResult;
 
         if (alreadyMemberResult.data) {
           toast({
@@ -118,19 +117,17 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         error: Error | null;
       }
       
-      const inviteCheckResult = await supabase.functions.invoke<InviteCheckResponse>('check-team-invitation', {
+      const { data: existingInvites, error: inviteCheckError } = await supabase.functions.invoke<InviteCheckResponse>('check-team-invitation', {
         body: { 
           email: values.email,
           organizationId
         }
       });
       
-      if (inviteCheckResult.error) {
-        console.error("Error checking invitation:", inviteCheckResult.error);
-        throw inviteCheckResult.error;
+      if (inviteCheckError) {
+        console.error("Error checking invitation:", inviteCheckError);
+        throw inviteCheckError;
       } 
-      
-      const existingInvites = inviteCheckResult.data;
       
       if (existingInvites && existingInvites.length > 0) {
         toast({
@@ -144,11 +141,11 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
       
       // Create the invitation via edge function
       interface InvitationResponse {
-        data: { id: string };
+        data: { id: string } | null;
         error: Error | null;
       }
       
-      const invitationResult = await supabase.functions.invoke<InvitationResponse>('create-team-invitation', {
+      const { data: invitationData, error: invitationError } = await supabase.functions.invoke<InvitationResponse>('create-team-invitation', {
         body: { 
           email: values.email,
           role: values.role,
@@ -158,8 +155,8 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         }
       });
       
-      if (invitationResult.error) throw invitationResult.error;
-      if (!invitationResult.data) throw new Error('Failed to create invitation');
+      if (invitationError) throw invitationError;
+      if (!invitationData?.id) throw new Error('Failed to create invitation');
 
       // Send the invitation email via edge function
       interface EmailResponse {
@@ -167,16 +164,16 @@ export function InviteTeamMember({ open, onOpenChange, onInvitationSent }: Invit
         error: Error | null;
       }
       
-      const emailResult = await supabase.functions.invoke<EmailResponse>('send-team-invitation', {
+      const { error: emailError } = await supabase.functions.invoke<EmailResponse>('send-team-invitation', {
         body: { 
-          invitationId: invitationResult.data.id,
+          invitationId: invitationData.id,
           email: values.email,
           role: values.role,
           message: values.message 
         }
       });
       
-      if (emailResult.error) throw emailResult.error;
+      if (emailError) throw emailError;
       
       toast({
         title: "Invitation sent",
