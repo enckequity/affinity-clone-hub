@@ -33,7 +33,7 @@ export const useFileParsing = () => {
           });
           
           return {
-            fileFormat,
+            fileFormat: fileFormat as 'standard' | 'imazing' | 'unknown',
             showConfirm: true,
             parsedData: null
           };
@@ -62,7 +62,7 @@ export const useFileParsing = () => {
         return {
           parsedData: data,
           showConfirm: true,
-          fileFormat
+          fileFormat: fileFormat
         };
       }
     } catch (err: any) {

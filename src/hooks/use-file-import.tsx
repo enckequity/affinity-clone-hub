@@ -60,7 +60,9 @@ export const useFileImport = () => {
       const result = await parseFile(selectedFile, state.forceImport, state.processingMode);
       setState(prev => ({
         ...prev,
-        ...result
+        ...result,
+        // Ensure fileFormat is one of the allowed types
+        fileFormat: (result.fileFormat as 'standard' | 'imazing' | 'unknown') || 'unknown'
       }));
     } catch (err: any) {
       setState(prev => ({
@@ -96,7 +98,9 @@ export const useFileImport = () => {
       const result = await parseFile(state.file, !state.forceImport, state.processingMode);
       setState(prev => ({
         ...prev,
-        ...result
+        ...result,
+        // Ensure fileFormat is one of the allowed types
+        fileFormat: (result.fileFormat as 'standard' | 'imazing' | 'unknown') || 'unknown'
       }));
     } catch (err: any) {
       setState(prev => ({
