@@ -2,7 +2,11 @@
 import { useState } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { FileUploadState } from '@/types/fileImport';
-import { parseFileContent, processCSVInChunks } from '@/utils/fileParsingUtils';
+import { 
+  parseFileContent, 
+  processCSVInChunks, 
+  FileFormat 
+} from '@/utils/fileParsingUtils';
 
 export const useFileParsing = () => {
   const { toast } = useToast();
@@ -33,7 +37,7 @@ export const useFileParsing = () => {
           });
           
           return {
-            fileFormat: fileFormat as 'standard' | 'imazing' | 'unknown',
+            fileFormat: fileFormat as FileFormat,
             showConfirm: true,
             parsedData: null
           };
