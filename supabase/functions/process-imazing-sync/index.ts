@@ -1,3 +1,4 @@
+
 // Follow this setup guide to integrate the Deno runtime into your application:
 // https://deno.com/manual/examples/deploy_node_server
 
@@ -6,7 +7,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.29.0";
 
 // Allowed phone types and directions
 const ALLOWED_TYPES = ["call", "text"];
-const ALLOWED_DIRECTIONS = ["incoming", "outgoing", "missed"];
+const ALLOWED_DIRECTIONS = ["incoming", "outgoing", "missed", "unknown"];
 // Allowed sync types
 const ALLOWED_SYNC_TYPES = ["manual", "auto", "scheduled", "import"];
 
@@ -18,6 +19,31 @@ interface Communication {
   content?: string;
   duration?: number;
   timestamp: string;
+}
+
+// Normalize direction value to lowercase and ensure it's valid
+function normalizeDirection(direction: string): string {
+  if (!direction) return 'unknown';
+  
+  // Convert to lowercase
+  const lowercaseDirection = direction.toLowerCase();
+  
+  // Check if it matches one of our allowed directions
+  if (ALLOWED_DIRECTIONS.includes(lowercaseDirection)) {
+    return lowercaseDirection;
+  }
+  
+  // Handle common variations
+  if (lowercaseDirection.includes('in') || lowercaseDirection.includes('received')) {
+    return 'incoming';
+  } else if (lowercaseDirection.includes('out') || lowercaseDirection.includes('sent')) {
+    return 'outgoing';
+  } else if (lowercaseDirection.includes('miss')) {
+    return 'missed';
+  }
+  
+  // Default fallback
+  return 'unknown';
 }
 
 // Basic validation function for payload
@@ -32,7 +58,11 @@ function validatePayload(payload: any): boolean {
 // Validate individual communication object
 function validateCommunication(comm: any): boolean {
   if (!comm.type || !ALLOWED_TYPES.includes(comm.type)) return false;
-  if (!comm.direction || !ALLOWED_DIRECTIONS.includes(comm.direction)) return false;
+  
+  // Normalize and validate the direction
+  const normalizedDirection = normalizeDirection(comm.direction);
+  if (!ALLOWED_DIRECTIONS.includes(normalizedDirection)) return false;
+  
   if (!comm.contact_phone) return false;
   if (!comm.timestamp) return false;
   
@@ -131,6 +161,11 @@ serve(async (req) => {
   let processedCount = 0;
   
   for (const comm of payload.communications) {
+    // Normalize direction before validation
+    if (comm && comm.direction) {
+      comm.direction = normalizeDirection(comm.direction);
+    }
+    
     if (validateCommunication(comm)) {
       validCommunications.push({
         ...comm,
