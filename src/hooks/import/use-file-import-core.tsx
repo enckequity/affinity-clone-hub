@@ -80,6 +80,19 @@ export const useFileImportCore = () => {
     }
   };
   
+  // Helper function to validate and fix records before sending to server
+  const validateRecords = (records: any[]) => {
+    if (!records) return [];
+    
+    return records.map(record => {
+      // Ensure direction is always either 'incoming' or 'outgoing', default to 'outgoing'
+      if (!record.direction || record.direction === 'unknown') {
+        record.direction = 'outgoing';
+      }
+      return record;
+    });
+  };
+  
   const handleUpload = async () => {
     if (!state.file) return;
     
@@ -103,11 +116,14 @@ export const useFileImportCore = () => {
           setState(prev => ({ ...prev, uploadProgress: 15 + Math.floor(progress * 0.3) }));
         });
         
+        // Validate each chunk to ensure all records have valid directions
+        const validatedChunks = chunks.map(chunk => validateRecords(chunk));
+        
         setState(prev => ({ ...prev, uploadProgress: 45 }));
         
         const result = await processBulkImport(
           { file: state.file, forceImport: state.forceImport },
-          chunks,
+          validatedChunks,
           fileFormat,
           session.user.id,
           session.access_token,
@@ -124,11 +140,14 @@ export const useFileImportCore = () => {
         // Standard import mode
         if (!state.parsedData) return;
         
+        // Validate records to ensure all have valid directions
+        const validatedData = validateRecords(state.parsedData);
+        
         setState(prev => ({ ...prev, uploadProgress: 30 }));
         
         const result = await processStandardImport(
           { file: state.file, forceImport: state.forceImport },
-          state.parsedData,
+          validatedData,
           session.user.id,
           session.access_token,
           (progress) => setState(prev => ({ ...prev, uploadProgress: progress }))

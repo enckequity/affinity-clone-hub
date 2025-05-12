@@ -35,7 +35,8 @@ export const standardizeCommunication = (record: Record<string, string>, fileFor
     ) || '';
     
     // Determine direction based on type field directly
-    let direction: 'incoming' | 'outgoing' | 'missed' | 'unknown' = 'unknown';
+    // Default to 'outgoing' instead of 'unknown'
+    let direction: 'incoming' | 'outgoing' | 'missed' = 'outgoing';
     
     if (typeField && record[typeField]) {
       const typeValue = record[typeField].toLowerCase();
@@ -48,13 +49,11 @@ export const standardizeCommunication = (record: Record<string, string>, fileFor
       }
     }
     
-    // If direction is still unknown, try using service field
-    if (direction === 'unknown' && serviceField && record[serviceField]) {
-      // For iMessage format, try to determine from "Type" field
+    // If direction is still outgoing (was unknown before), try using service field
+    if (direction === 'outgoing' && serviceField && record[serviceField]) {
+      // For iMessage format, try to determine from sender ID field
       if (senderIdField && record[senderIdField]) {
         direction = 'incoming';  // If sender ID is present, it's usually incoming
-      } else {
-        direction = 'outgoing';  // Otherwise, it's likely outgoing
       }
     }
     
@@ -142,13 +141,17 @@ export const standardizeCommunication = (record: Record<string, string>, fileFor
     ) || '';
     
     // Determine direction based on available fields
-    let direction: 'incoming' | 'outgoing' | 'missed' | 'unknown' = 'unknown';
+    // Default to 'outgoing' instead of 'unknown'
+    let direction: 'incoming' | 'outgoing' | 'missed' = 'outgoing';
+    
     if (directionField && record[directionField]) {
       const dirValue = record[directionField].toLowerCase();
       if (dirValue.includes('in') || dirValue.includes('received')) {
         direction = 'incoming';
       } else if (dirValue.includes('out') || dirValue.includes('sent')) {
         direction = 'outgoing';
+      } else if (dirValue.includes('missed')) {
+        direction = 'missed';
       }
     }
     

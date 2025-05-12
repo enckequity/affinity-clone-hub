@@ -13,7 +13,8 @@ export const useFileImport = () => {
     handleUpload,
     resetForm,
     toggleForceImport,
-    setProcessingMode
+    setProcessingMode,
+    reparseCurrentFile
   } = useFileImportCore();
 
   return {
@@ -22,6 +23,7 @@ export const useFileImport = () => {
     handleUpload,
     resetForm,
     toggleForceImport,
-    setProcessingMode
+    setProcessingMode,
+    reparseCurrentFile
   };
 };
